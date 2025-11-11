@@ -376,7 +376,7 @@
                     <div class="p-4 flex-shrink-0 flex items-center justify-center min-w-[80px]">
                         <div class="text-center">
                             <span class="text-2xl text-imdb-yellow font-bold">★</span>
-                            <span class="text-xl font-bold ml-1">{{ $film['rating'] }}</span>
+                           <span class="text-xl font-bold ml-1">{{ isset($film['rating']) && $film['rating'] !== '' ? $film['rating'] : 'N/A' }}</span>
                         </div>
                     </div>
                 </a>

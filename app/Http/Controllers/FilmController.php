@@ -55,7 +55,7 @@ class FilmController extends Controller
         $genre = $request->input('genre');
         $sort = $request->input('sort', 'title_asc');
         $page = $request->input('page', 1);
-        $perPage = 20;
+        $perPage = 42;
         $offset = ($page - 1) * $perPage;
 
         // 2. Bangun Klausa WHERE untuk FILTERING

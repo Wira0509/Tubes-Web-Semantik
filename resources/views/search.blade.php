@@ -235,10 +235,9 @@
     </aside>
     
     <main class="container mx-auto max-w-7xl p-4 md:p-8">
-        
         @if(!empty($featuredFilms))
         <section 
-            class="mb-12 rounded-lg overflow-hidden relative" 
+            class="mb-12 rounded-xl overflow-hidden relative shadow-2xl border border-gray-800" 
             x-data="{
                 activeSlide: 0,
                 slideCount: {{ count($featuredFilms) }},
@@ -246,7 +245,7 @@
                 startAutoplay() {
                     this.autoplay = setInterval(() => {
                         this.activeSlide = (this.activeSlide + 1) % this.slideCount;
-                    }, 5000);
+                    }, 6000); // Diperlambat sedikit ke 6 detik
                 },
                 stopAutoplay() {
                     clearInterval(this.autoplay);
@@ -263,8 +262,10 @@
                 }
             }"
             x-init="startAutoplay()"
+            @mouseenter="stopAutoplay()"
+            @mouseleave="startAutoplay()"
         >
-            <div class="relative w-full h-[400px] overflow-hidden">
+            <div class="relative w-full h-[500px] md:h-[450px] overflow-hidden group bg-imdb-dark">
                 @foreach($featuredFilms as $index => $featuredFilm)
                     @php($featuredId = last(explode('/', rtrim($featuredFilm['film'], '/'))))
                     
@@ -277,42 +278,66 @@
                         x-transition:leave-start="opacity-100"
                         x-transition:leave-end="opacity-0"
                         class="absolute inset-0 w-full h-full"
-                        style="background-image: url('{{ $featuredFilm['poster'] }}'); background-size: cover; background-position: center; filter: blur(24px) brightness(0.2); transform: scale(1.2);"
-                    ></div>
-
-                    <div 
-                        x-show="activeSlide === {{ $index }}"
-                        x-transition:enter="transition-opacity ease-in-out duration-1000 delay-200"
-                        x-transition:enter-start="opacity-0"
-                        x-transition:enter-end="opacity-100"
-                        x-transition:leave="transition-opacity ease-in-out duration-1000"
-                        x-transition:leave-start="opacity-100"
-                        x-transition:leave-end="opacity-0"
-                        class="absolute inset-0 p-6 md:p-12 flex flex-col md:flex-row items-center gap-6 md:gap-8"
                     >
-                        <a href="{{ route('film.show', $featuredId) }}" class="w-48 flex-shrink-0">
-                            <img src="{{ $featuredFilm['poster'] }}" alt="{{ $featuredFilm['title'] }} Poster" class="w-full h-72 object-cover rounded-lg shadow-lg hover:opacity-80 transition-opacity duration-200">
-                        </a>
-                        <div class="flex flex-col justify-center text-white text-center md:text-left">
-                            <h2 class="text-3xl font-bold mb-3">{{ $featuredFilm['title'] }}</h2>
-                            <p class="text-gray-300 text-lg mb-6 line-clamp-3">
-                                {{ \Illuminate\Support\Str::limit($featuredFilm['plot'], 150) }}
-                            </p>
-                            <a href="{{ route('film.show', $featuredId) }}" class="inline-flex items-center justify-center gap-2 px-6 py-3 bg-imdb-yellow text-black font-bold rounded-md w-auto md:w-max hover:bg-yellow-300 transition-colors mx-auto md:mx-0">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" /></svg>
-Lihat Detail
+                        <div class="absolute inset-0 w-full h-full overflow-hidden z-0">
+                            <img 
+                                src="{{ $featuredFilm['poster'] }}" 
+                                alt="Background"
+                                class="w-full h-full object-cover blur-lg brightness-[0.5] scale-110"
+                            >
+                            <div class="absolute inset-0 bg-gradient-to-t from-imdb-dark via-imdb-dark/50 to-transparent"></div>
+                            <div class="absolute inset-0 bg-gradient-to-r from-imdb-dark via-imdb-dark/80 to-transparent"></div>
+                        </div>
+
+                        <div class="relative z-10 h-full p-6 md:p-12 flex flex-col md:flex-row items-center gap-6 md:gap-10 h-full justify-center md:justify-start">
+                            
+                            <a href="{{ route('film.show', $featuredId) }}" class="hidden md:block w-48 md:w-56 flex-shrink-0 shadow-[0_0_20px_rgba(0,0,0,0.5)] transition-transform transform hover:scale-105 duration-300">
+                                <img src="{{ $featuredFilm['poster'] }}" alt="{{ $featuredFilm['title'] }} Poster" class="w-full h-auto rounded-lg border border-gray-600/50">
                             </a>
+
+                            <div class="flex flex-col justify-center text-white text-center md:text-left max-w-3xl">
+                                <h2 class="text-3xl md:text-5xl font-bold mb-4 leading-tight drop-shadow-lg text-white">
+                                    {{ $featuredFilm['title'] }}
+                                </h2>
+                                
+                                @if(isset($featuredFilm['rating']))
+                                <div class="flex items-center justify-center md:justify-start gap-2 mb-4 text-imdb-yellow font-bold text-lg">
+                                    <span>★</span> <span>{{ $featuredFilm['rating'] }}</span>
+                                </div>
+                                @endif
+
+                                <p class="text-gray-200 text-base md:text-lg mb-8 line-clamp-3 leading-relaxed drop-shadow-md max-w-2xl mx-auto md:mx-0">
+                                    {{ \Illuminate\Support\Str::limit($featuredFilm['plot'], 200) }}
+                                </p>
+                                
+                                <div class="flex flex-col md:flex-row gap-4 justify-center md:justify-start">
+                                    <a href="{{ route('film.show', $featuredId) }}" class="inline-flex items-center justify-center gap-2 px-8 py-3 bg-imdb-yellow text-black font-bold text-lg rounded-full hover:bg-yellow-400 transition-all transform hover:-translate-y-1 shadow-lg">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
+                                        </svg>
+                                        Lihat Detail
+                                    </a>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 @endforeach
             </div>
 
-            <button @click="prev()" class="absolute top-1/2 -translate-y-1/2 left-4 z-10 bg-black/40 hover:bg-black/70 p-2 rounded-full text-white cursor-pointer">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
+            <button @click="prev()" class="absolute top-1/2 -translate-y-1/2 left-4 z-20 bg-black/30 hover:bg-imdb-yellow/90 hover:text-black backdrop-blur-sm p-3 rounded-full text-white transition-all duration-300 cursor-pointer border border-white/10">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M15 19l-7-7 7-7" /></svg>
             </button>
-            <button @click="next()" class="absolute top-1/2 -translate-y-1/2 right-4 z-10 bg-black/40 hover:bg-black/70 p-2 rounded-full text-white cursor-pointer">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+            <button @click="next()" class="absolute top-1/2 -translate-y-1/2 right-4 z-20 bg-black/30 hover:bg-imdb-yellow/90 hover:text-black backdrop-blur-sm p-3 rounded-full text-white transition-all duration-300 cursor-pointer border border-white/10">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5l7 7-7 7" /></svg>
             </button>
+            
+            <div class="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-20 flex gap-2">
+                @foreach($featuredFilms as $index => $featuredFilm)
+                    <button @click="activeSlide = {{ $index }}; stopAutoplay(); startAutoplay();" 
+                        :class="activeSlide === {{ $index }} ? 'bg-imdb-yellow w-8' : 'bg-white/50 w-2 hover:bg-white'"
+                        class="h-2 rounded-full transition-all duration-300"></button>
+                @endforeach
+            </div>
         </section>
         @endif
         
@@ -375,30 +400,20 @@ Lihat Detail
                 @php($imdbId = last(explode('/', rtrim($film['film'], '/'))))
                 
                 <div class="block bg-imdb-gray rounded-lg shadow-md overflow-hidden 
-                          transform transition-all duration-300 ease-in-out 
-                          hover:shadow-xl hover:shadow-imdb-yellow/10 group">
+                            transform transition-all duration-300 ease-in-out 
+                            hover:shadow-xl hover:shadow-imdb-yellow/10 group">
                     
                     <a href="{{ route('film.show', $imdbId) }}" class="relative block">
                         <img src="{{ $film['poster'] }}" alt="{{ $film['title'] }} Poster" 
                              class="w-full h-64 sm:h-72 md:h-80 object-cover">
-                        
-                        <div class="absolute top-0 left-0 w-8 h-10 
-                                    bg-black bg-opacity-60 
-                                    opacity-0 group-hover:opacity-100 
-                                    transition-opacity duration-300
-                                    flex items-center justify-center
-                                    rounded-br-lg cursor-pointer
-                                    text-imdb-yellow hover:bg-opacity-80">
-                            <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0111.186 0z" />
-                            </svg>
-                        </div>
                     </a>
                     
                     <div class="p-3">
                         <div class="flex items-center mb-1">
                             <span class="text-imdb-yellow font-bold text-sm">★</span>
-                            <span class="text-white font-semibold text-sm ml-1.5">{{ isset($film['rating']) && $film['rating'] !== '' ? $film['rating'] : 'N/A' }}</span>
+                            <span class="text-white font-semibold text-sm ml-1.5">
+                                {{ isset($film['rating']) && $film['rating'] !== '' ? $film['rating'] : 'N/A' }}
+                            </span>
                         </div>
 
                         <a href="{{ route('film.show', $imdbId) }}" title="{{ $film['title'] }}">
@@ -406,13 +421,8 @@ Lihat Detail
                                 {{ $film['title'] }}
                             </h3>
                         </a>
-
-                        <button type="button" class="mt-3 w-full text-center px-2 py-1.5 hover:bg-imdb-light-gray rounded-md text-sm text-white font-semibold transition-colors flex items-center justify-center gap-1 group/trailer">
-                            <svg class="w-4 h-4 text-white group-hover/trailer:text-imdb-yellow transition-colors" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.972l-11.54 6.347a1.125 1.125 0 01-1.667-.986V5.653z" />
-                            </svg>
-                            <span class="group-hover/trailer:text-imdb-yellow transition-colors">Trailer</span>
-                        </button>
+                        
+                        <div class="pb-2"></div> 
                     </div>
                 </div>
             @empty

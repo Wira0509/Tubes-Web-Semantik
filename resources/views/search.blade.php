@@ -1,9 +1,27 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="id" prefix="og: http://ogp.me/ns# schema: http://schema.org/" vocab="http://schema.org/">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TetengFilm: Peringkat, Saran, dan Tempat Mengetahui Film & Acara TV Terbaik</title>
+    
+    {{-- Open Graph Protocol Meta Tags --}}
+    <meta property="og:title" content="TetengFilm - Database Film Terlengkap">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ url()->current() }}">
+    <meta property="og:image" content="{{ asset('images/tetengfilm-logo.png') }}">
+    <meta property="og:description" content="Temukan film favorit Anda dengan rating, review, dan informasi lengkap. Database film terlengkap dengan data dari Fuseki dan DBpedia.">
+    <meta property="og:site_name" content="TetengFilm">
+    <meta property="og:locale" content="id_ID">
+    
+    {{-- Twitter Card Meta Tags --}}
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="TetengFilm - Database Film Terlengkap">
+    <meta name="twitter:description" content="Temukan film favorit Anda dengan rating, review, dan informasi lengkap.">
+    
+    {{-- Schema.org Meta --}}
+    <meta name="description" content="TetengFilm menyediakan informasi lengkap tentang film, rating IMDb, review, cast, crew, dan detail produksi. Database film terlengkap dengan data dari SPARQL endpoint.">
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="//unpkg.com/alpinejs" defer></script>
     <script>
@@ -363,19 +381,20 @@
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
             </button>
 
-            <div class="flex overflow-x-auto space-x-4 pb-4 no-scrollbar scroll-smooth" x-ref="scroller" @scroll.debounce.100ms="checkScroll()">
+            <div class="flex overflow-x-auto space-x-4 pb-4 no-scrollbar scroll-smooth" x-ref="scroller" @scroll.debounce.100ms="checkScroll()" typeof="ItemList">
                 @foreach($topPicks as $pick)
                     @php($imdbId = last(explode('/', rtrim($pick['film'], '/'))))
-                    <a href="{{ route('film.show', $imdbId) }}" class="block w-48 flex-shrink-0 group scroll-snap-start">
+                    <a href="{{ route('film.show', $imdbId) }}" class="block w-48 flex-shrink-0 group scroll-snap-start" property="itemListElement" typeof="Movie">
                         <div class="relative">
-                            <img src="{{ $pick['poster'] }}" alt="{{ $pick['title'] }} Poster" class="w-full h-72 object-cover rounded-lg shadow-lg group-hover:opacity-80 transition-opacity duration-200">
+                            <img src="{{ $pick['poster'] }}" alt="{{ $pick['title'] }} Poster" property="image" class="w-full h-72 object-cover rounded-lg shadow-lg group-hover:opacity-80 transition-opacity duration-200">
                         </div>
                         <div class="mt-3">
-                            <div class="flex items-center">
+                            <div class="flex items-center" property="aggregateRating" typeof="AggregateRating">
                                 <span class="text-imdb-yellow font-bold">★</span>
-                                <span class="text-white font-semibold ml-1.5">{{ $pick['rating'] }}</span>
+                                <span class="text-white font-semibold ml-1.5" property="ratingValue">{{ $pick['rating'] }}</span>
+                                <meta property="bestRating" content="10">
                             </div>
-                            <h4 class="text-white font-semibold mt-1 truncate group-hover:text-imdb-yellow transition-colors" title="{{ $pick['title'] }}">
+                            <h4 class="text-white font-semibold mt-1 truncate group-hover:text-imdb-yellow transition-colors" property="name" title="{{ $pick['title'] }}">
                                 {{ $pick['title'] }}
                             </h4>
                         </div>
@@ -398,30 +417,33 @@
             @endif
         </h1>
         
-        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4" typeof="ItemList">
             
             @forelse ($films as $film)
                 @php($imdbId = last(explode('/', rtrim($film['film'], '/'))))
                 
                 <div class="block bg-imdb-gray rounded-lg shadow-md overflow-hidden 
                             transform transition-all duration-300 ease-in-out 
-                            hover:shadow-xl hover:shadow-imdb-yellow/10 group">
+                            hover:shadow-xl hover:shadow-imdb-yellow/10 group" 
+                     property="itemListElement" typeof="Movie">
                     
                     <a href="{{ route('film.show', $imdbId) }}" class="relative block">
                         <img src="{{ $film['poster'] }}" alt="{{ $film['title'] }} Poster" 
+                             property="image"
                              class="w-full h-64 sm:h-72 md:h-80 object-cover">
                     </a>
                     
                     <div class="p-3">
-                        <div class="flex items-center mb-1">
+                        <div class="flex items-center mb-1" property="aggregateRating" typeof="AggregateRating">
                             <span class="text-imdb-yellow font-bold text-sm">★</span>
-                            <span class="text-white font-semibold text-sm ml-1.5">
+                            <span class="text-white font-semibold text-sm ml-1.5" property="ratingValue">
                                 {{ isset($film['rating']) && $film['rating'] !== '' ? $film['rating'] : 'N/A' }}
                             </span>
+                            <meta property="bestRating" content="10">
                         </div>
 
                         <a href="{{ route('film.show', $imdbId) }}" title="{{ $film['title'] }}">
-                            <h3 class="text-md font-semibold text-white group-hover:underline truncate">
+                            <h3 class="text-md font-semibold text-white group-hover:underline truncate" property="name">
                                 {{ $film['title'] }}
                             </h3>
                         </a>

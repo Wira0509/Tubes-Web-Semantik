@@ -9,11 +9,13 @@ use Illuminate\Pagination\LengthAwarePaginator; // Untuk paginasi manual
 class FilmController extends Controller
 {
     protected $fuseki;
+    protected $dbpedia;
 
-    // Inject FusekiService
-    public function __construct(FusekiService $fuseki)
+    // Inject FusekiService and DBpediaService
+    public function __construct(FusekiService $fuseki, \App\Services\DBpediaService $dbpedia)
     {
         $this->fuseki = $fuseki;
+        $this->dbpedia = $dbpedia;
     }
 
     /**
@@ -533,6 +535,10 @@ class FilmController extends Controller
         } else {
             $film['writers_list'] = [];
         }
+
+        // Ambil budget dari DBpedia
+        $dbpediaData = $this->dbpedia->getFilmInfo($film['title'], $film['year']);
+        $film['dbpedia'] = $dbpediaData;
 
         return view('detail', [
             'film' => $film

@@ -36,6 +36,15 @@
     <meta name="twitter:description" content="{{ Str::limit($film['plot'], 200) }}">
     <meta name="twitter:image" content="{{ $film['poster'] }}">
     
+    {{-- Wikipedia Reference Link --}}
+    @php
+        $wikipediaTitle = str_replace(' ', '_', $film['title']);
+        $imdbId = last(explode('/', rtrim($film['film'], '/')));
+    @endphp
+    <meta property="og:see_also" content="https://en.wikipedia.org/wiki/{{ $wikipediaTitle }}">
+    <meta property="og:see_also" content="https://www.imdb.com/title/{{ $imdbId }}/">
+    <link rel="alternate" type="text/html" href="https://en.wikipedia.org/wiki/{{ $wikipediaTitle }}" title="Wikipedia Article">
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -102,6 +111,22 @@
                     </div>
                 </div>
                 @endif
+                
+                {{-- External Links --}}
+                @php
+                    $wikipediaTitle = str_replace(' ', '_', $film['title']);
+                @endphp
+                <div class="mt-6">
+                    <a href="https://en.wikipedia.org/wiki/{{ $wikipediaTitle }}" target="_blank" class="flex items-center justify-center gap-2 w-full px-4 py-3 bg-gray-700 text-white font-semibold rounded-lg hover:bg-gray-600 transition-colors border border-gray-600">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12.09 13.119c-.936 1.932-2.217 4.548-2.853 5.728-.616 1.074-1.127.931-1.532.029-1.406-3.321-4.293-9.144-5.651-12.409-.251-.601-.441-.987-.619-1.139-.181-.15-.554-.24-1.122-.271C.103 5.033 0 4.997 0 4.838v-.748c0-.159.103-.195.307-.226 1.078-.129 2.599-.246 4.018-.246.926 0 2.164.117 3.09.246.204.031.307.067.307.226v.748c0 .159-.103.195-.307.226-.449.031-.857.074-1.189.141-.333.068-.411.227-.267.495 1.096 2.036 2.831 5.924 3.814 8.217.375.888.681 1.61.962 2.166.271-.545.583-1.262.962-2.166.912-2.174 2.456-5.888 3.468-7.946.182-.354.103-.555-.23-.623-.307-.062-.706-.104-1.155-.135-.204-.031-.307-.067-.307-.226v-.748c0-.159.103-.195.307-.226.937-.129 2.106-.246 3.032-.246 1.292 0 2.429.117 3.506.246.204.031.307.067.307.226v.748c0 .159-.103.195-.307.226-.473.031-.918.104-1.293.226-.373.123-.65.486-.946 1.122-1.104 2.558-3.295 7.574-4.788 10.711-.494 1.021-.883 1.788-1.168 2.301-.285.512-.569.683-.854.512-.286-.17-.569-.512-.854-1.024-.286-.511-.674-1.278-1.168-2.3z"/>
+                        </svg>
+                        Baca di Wikipedia
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                        </svg>
+                    </a>
+                </div>
             </div>
 
             <!-- Detail Info -->
@@ -211,7 +236,29 @@
                                         <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z"/>
                                         <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clip-rule="evenodd"/>
                                     </svg>
-                                    {{ $film['boxOffice'] }}
+                                    @php
+                                        // Format box office dengan koma
+                                        $boxOffice = $film['boxOffice'];
+                                        // Ekstrak angka dari string (misal: $623575910)
+                                        if (preg_match('/[\d.]+/', $boxOffice, $matches)) {
+                                            $number = floatval($matches[0]);
+                                            $formatted = '$' . number_format($number, 0, '.', ',');
+                                            $boxOffice = str_replace($matches[0], ltrim($formatted, '$'), $boxOffice);
+                                        }
+                                    @endphp
+                                    {{ $boxOffice }}
+                                </span>
+                            </div>
+                            @endif
+                            
+                            @if(!empty($film['dbpedia']['budget']))
+                            <div class="flex justify-between border-b border-gray-700 pb-2">
+                                <span class="text-gray-400">Budget <span class="text-xs text-blue-400">(DBpedia)</span></span>
+                                <span class="flex items-center gap-1">
+                                    <svg class="w-4 h-4 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/>
+                                    </svg>
+                                    {{ $film['dbpedia']['budget'] }}
                                 </span>
                             </div>
                             @endif
@@ -258,7 +305,12 @@
 
     <footer class="border-t border-imdb-light-gray mt-12 py-8 bg-imdb-gray">
         <div class="container mx-auto max-w-6xl px-4 text-center text-gray-500">
-            <p>&copy; {{ date('Y') }} TetengFilm. Data film disediakan oleh Fuseki & DBpedia.</p>
+            <p>&copy; {{ date('Y') }} TetengFilm. Data film dari Fuseki (OMDb) & DBpedia (Wikipedia).</p>
+            <p class="text-xs mt-2">
+                Integrasi: <span class="text-blue-400">DBpedia SPARQL Endpoint</span> | 
+                <span class="text-yellow-400">Open Graph Protocol</span> | 
+                <span class="text-green-400">Schema.org RDFa</span>
+            </p>
         </div>
     </footer>
 

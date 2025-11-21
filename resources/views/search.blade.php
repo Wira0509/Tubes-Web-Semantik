@@ -422,18 +422,14 @@
             @forelse ($films as $film)
                 @php($imdbId = last(explode('/', rtrim($film['film'], '/'))))
                 
-                <div class="block bg-imdb-gray rounded-lg shadow-md overflow-hidden 
-                            transform transition-all duration-300 ease-in-out 
-                            hover:shadow-xl hover:shadow-imdb-yellow/10 group" 
-                     property="itemListElement" typeof="Movie">
-                    
-                    <a href="{{ route('film.show', $imdbId) }}" class="relative block">
+                <a href="{{ route('film.show', $imdbId) }}" class="block group" property="itemListElement" typeof="Movie">
+                    <div class="relative">
                         <img src="{{ $film['poster'] }}" alt="{{ $film['title'] }} Poster" 
                              property="image"
-                             class="w-full h-64 sm:h-72 md:h-80 object-cover">
-                    </a>
+                             class="w-full h-64 sm:h-72 md:h-80 object-cover rounded-lg shadow-lg group-hover:opacity-80 transition-opacity duration-200">
+                    </div>
                     
-                    <div class="p-3">
+                    <div class="mt-3">
                         <div class="flex items-center mb-1" property="aggregateRating" typeof="AggregateRating">
                             <span class="text-imdb-yellow font-bold text-sm">★</span>
                             <span class="text-white font-semibold text-sm ml-1.5" property="ratingValue">
@@ -442,15 +438,11 @@
                             <meta property="bestRating" content="10">
                         </div>
 
-                        <a href="{{ route('film.show', $imdbId) }}" title="{{ $film['title'] }}">
-                            <h3 class="text-md font-semibold text-white group-hover:underline truncate" property="name">
-                                {{ $film['title'] }}
-                            </h3>
-                        </a>
-                        
-                        <div class="pb-2"></div> 
+                        <h3 class="text-md font-semibold text-white truncate group-hover:text-imdb-yellow transition-colors" property="name" title="{{ $film['title'] }}">
+                            {{ $film['title'] }}
+                        </h3>
                     </div>
-                </div>
+                </a>
             @empty
                 <div class="col-span-2 sm:col-span-3 md:col-span-4 lg:col-span-6 bg-imdb-gray p-8 md:p-16 rounded-lg text-center flex flex-col items-center justify-center min-h-[300px]">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-gray-600 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">

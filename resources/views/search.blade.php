@@ -26,7 +26,11 @@
     <script src="//unpkg.com/alpinejs" defer></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            if (sessionStorage.getItem('scrollToResults') === 'true') {
+            const urlParams = new URLSearchParams(window.location.search);
+            const hasPageParam = urlParams.has('page');
+            const shouldScroll = sessionStorage.getItem('scrollToResults') === 'true';
+            
+            if (shouldScroll || hasPageParam) {
                 sessionStorage.removeItem('scrollToResults');
                 setTimeout(() => {
                     const element = document.getElementById('hasil-film');

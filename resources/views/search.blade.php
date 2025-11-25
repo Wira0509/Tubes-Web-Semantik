@@ -98,7 +98,7 @@
 
             <form action="{{ route('film.search') }}" method="GET" class="w-full md:w-[32rem] ml-auto"
                   x-data="{ isSubmitting: false }"
-                  @submit="isSubmitting = true">
+                  @submit="isSubmitting = true; sessionStorage.setItem('scrollToResults', 'true')">
                 
                 @foreach(request()->except(['query', 'letter', 'page']) as $key => $value)
                     @if(is_array($value))

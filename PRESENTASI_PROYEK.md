@@ -1000,6 +1000,4 @@ Proyek ini adalah aplikasi web IMDB Clone yang menggunakan:
 
 ---
 
-**Dibuat untuk presentasi kepada kating** 📝
-**Tanggal**: 2024
 

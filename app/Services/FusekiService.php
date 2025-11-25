@@ -13,21 +13,21 @@ class FusekiService
     public function __construct()
     {
         // ============================================================
-        // 🔧 RDF Namespace Registration
+        // RDF Namespace Registration
         // ============================================================
         // Map prefixes to full URIs for easy querying
-        RdfNamespace::set('fm', 'http://www.example.com/film#');          // 🎬 Film properties
-        RdfNamespace::set('person', 'http://www.example.com/person#');    // 👤 People
-        RdfNamespace::set('rdf', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#');  // 📋 RDF standard
+        RdfNamespace::set('fm', 'http://www.example.com/film#');          //  Film properties
+        RdfNamespace::set('person', 'http://www.example.com/person#');    //  People
+        RdfNamespace::set('rdf', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#');  //  RDF standard
 
         // ============================================================
-        // 🔗 SPARQL Client Setup
+        //  SPARQL Client Setup
         // ============================================================
         // Connect to Apache Fuseki: localhost:3030/tubeswsfilm/query
         $this->client = new Client(env('FUSEKI_ENDPOINT'));
 
         // ============================================================
-        // 📝 Auto-Inject Prefixes
+        //  Auto-Inject Prefixes
         // ============================================================
         // Shorthand: fm:title vs <http://www.example.com/film#title>
         $this->prefixes = "

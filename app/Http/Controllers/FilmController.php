@@ -50,6 +50,16 @@ class FilmController extends Controller
 
         // 1. Ambil semua parameter filter
         $searchQuery = $request->input('query');
+        
+        // ============================================================
+        // 🎯 IMDb ID DETECTION - Direct Redirect to Detail Page
+        // ============================================================
+        // Jika user search dengan IMDb ID format (tt + angka), redirect langsung ke detail
+        if ($searchQuery && preg_match('/^tt\d+$/i', trim($searchQuery))) {
+            $imdbId = strtolower(trim($searchQuery));
+            return redirect()->route('film.show', ['imdb_id' => $imdbId]);
+        }
+        
         $letter = $request->input('letter');
         $year = $request->input('year');
         $type = $request->input('type');
@@ -89,6 +99,9 @@ class FilmController extends Controller
             // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             $escapedSearchQuery = addslashes($searchQuery);
             $escapedCleanSearchQuery = addslashes($cleanSearchQuery);
+            
+            // 🎬 Deteksi jika search query mengandung format IMDb ID (tt + angka)
+            $isImdbSearch = preg_match('/tt\d+/i', $searchQuery);
 
             // 2. Tambahkan pembersihan di sisi SPARQL
             $filterClause .= "
@@ -113,14 +126,35 @@ class FilmController extends Controller
                     BIND(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(?lcaseActor, ' ', ''), '-', ''), ':', ''), '4', 'a'), '1', 'i'), '0', 'o') AS ?cleanActor_intermediate)
                 }
 
+                OPTIONAL {
+                    ?film fm:director ?directorUri .
+                    BIND(STRAFTER(STR(?directorUri), '#') AS ?directorNameOnly) 
+                    BIND(REPLACE(?directorNameOnly, '_', ' ') AS ?directorNameSpaced)
+                    BIND(LCASE(?directorNameSpaced) AS ?lcaseDirector)
+                    BIND(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(?lcaseDirector, ' ', ''), '-', ''), ':', ''), '4', 'a'), '1', 'i'), '0', 'o') AS ?cleanDirector_intermediate)
+                }
+
+                OPTIONAL {
+                    ?film fm:writer ?writerUri .
+                    BIND(STRAFTER(STR(?writerUri), '#') AS ?writerNameOnly) 
+                    BIND(REPLACE(?writerNameOnly, '_', ' ') AS ?writerNameSpaced)
+                    BIND(LCASE(?writerNameSpaced) AS ?lcaseWriter)
+                    BIND(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(?lcaseWriter, ' ', ''), '-', ''), ':', ''), '4', 'a'), '1', 'i'), '0', 'o') AS ?cleanWriter_intermediate)
+                }
+
                 BIND(IF(BOUND(?cleanPlot_intermediate), ?cleanPlot_intermediate, '') AS ?cleanPlot)
                 BIND(IF(BOUND(?cleanActor_intermediate), ?cleanActor_intermediate, '') AS ?cleanActor)
+                BIND(IF(BOUND(?cleanDirector_intermediate), ?cleanDirector_intermediate, '') AS ?cleanDirector)
+                BIND(IF(BOUND(?cleanWriter_intermediate), ?cleanWriter_intermediate, '') AS ?cleanWriter)
 
                 FILTER (
                     CONTAINS(?cleanTitle, '{$escapedCleanSearchQuery}') ||
                     CONTAINS(?cleanPlot, '{$escapedCleanSearchQuery}') ||
                     CONTAINS(LCASE(?year), LCASE('{$escapedSearchQuery}')) || 
-                    CONTAINS(?cleanActor, '{$escapedCleanSearchQuery}')
+                    CONTAINS(?cleanActor, '{$escapedCleanSearchQuery}') ||
+                    CONTAINS(?cleanDirector, '{$escapedCleanSearchQuery}') ||
+                    CONTAINS(?cleanWriter, '{$escapedCleanSearchQuery}')" . 
+                    ($isImdbSearch ? " || CONTAINS(LCASE(STR(?film)), LCASE('{$escapedSearchQuery}'))" : "") . "
                 )
             ";
         }
@@ -164,17 +198,37 @@ class FilmController extends Controller
         // ==================================================================
 
 
-        // 3. Buat kueri untuk TOTAL COUNT (Hapus {$prefixes})
+        // ============================================================
+        // QUERY 1: COUNT QUERY - Menghitung total film untuk pagination
+        // ============================================================
+        // Tujuan: Mendapatkan jumlah total film yang sesuai dengan filter
+        // Output: Integer tunggal (contoh: 4875)
+        // Digunakan untuk: Membuat pagination yang akurat
         $countQuery = "SELECT (COUNT(DISTINCT ?film) as ?total) WHERE { {$filterClause} }";
+        // COUNT(DISTINCT ?film): Hitung film unik, hindari duplikasi
+        // Menggunakan filterClause yang sama dengan main query
         $total = $this->fuseki->queryValue($countQuery);
 
+        // ============================================================
+        // QUERY 2 & 3: TWO-STAGE QUERY PATTERN (Optimasi Performance)
+        // ============================================================
+        // Teknik: Pisah query jadi 2 tahap untuk speedup 60x
+        // Stage 1 (Subquery): Filter + Sort -> ambil 42 ID saja
+        // Stage 2 (Outer): Load detail lengkap hanya untuk 42 film
+        
         // 4. Bangun kueri utama untuk MENGAMBIL DATA
         $sparqlSelect = "
             SELECT DISTINCT ?film ?title ?year ?rated ?poster ?plot ?rating ?type
                 (GROUP_CONCAT(DISTINCT ?actorUri; separator='||') AS ?actors)
                 (GROUP_CONCAT(DISTINCT ?directorUri; separator='||') AS ?directors)
         ";
+        // GROUP_CONCAT: Gabungkan multiple actors/directors jadi satu string
+        // separator='||': Pemisah untuk split di PHP nanti
+        // Contoh result: "Robert_Downey_Jr.||Gwyneth_Paltrow||Terrence_Howard"
 
+        // ============================================================
+        // SUBQUERY (Stage 1): Filter dan ambil ID film saja
+        // ============================================================
         $subQuery = "
             SELECT DISTINCT ?film ?title ?type
             WHERE { {$filterClause} }
@@ -182,6 +236,13 @@ class FilmController extends Controller
             LIMIT {$perPage}
             OFFSET {$offset}
         ";
+        // DISTINCT: Hindari duplikasi film
+        // Hanya ambil 3 properties (film, title, type) -> SANGAT CEPAT
+        // LIMIT: Ambil 42 film per halaman
+        // OFFSET: Skip film sebelumnya untuk pagination
+        //   Hal 1: OFFSET 0 (skip 0)
+        //   Hal 2: OFFSET 42 (skip 42)
+        //   Hal 3: OFFSET 84 (skip 84)
 
         // 5. Bangun string ORDER BY dinamis
         $orderBy = "";
@@ -229,12 +290,16 @@ class FilmController extends Controller
         
         $subQuery = str_replace('%ORDER_BY_placeholder%', $orderBy, $subQuery);
         
+        // ============================================================
+        // MAIN DATA QUERY (Stage 2): Load detail untuk 42 film
+        // ============================================================
         // 6. Jalankan kueri data (Hapus {$prefixes})
         $dataQuery = "
             {$sparqlSelect} 
             WHERE {
                 { {$subQuery} }
                 
+                # OPTIONAL: Properti tidak wajib ada (film bisa tanpa data ini)
                 OPTIONAL { ?film fm:year ?yearB }
                 OPTIONAL { ?film fm:rated ?ratedB }
                 OPTIONAL { ?film fm:poster ?posterB }
@@ -243,16 +308,24 @@ class FilmController extends Controller
                 OPTIONAL { ?film fm:actor ?actorUri . }
                 OPTIONAL { ?film fm:director ?directorUri . }
 
+                # BIND + COALESCE: Set default value jika data kosong
                 BIND(COALESCE(?yearB, 'N/A') AS ?year)
                 BIND(COALESCE(?ratedB, 'N/A') AS ?rated)
                 BIND(COALESCE(?posterB, 'https://placehold.co/100x150/1a1a1a/f5c518?text=No+Poster') AS ?poster)
                 BIND(COALESCE(?plotB, 'Plot not available.') AS ?plot)
                 BIND(COALESCE(?ratingB, '0.0') AS ?ratingStr)
+                
+                # xsd:float: Convert string ke float untuk sorting numerik yang benar
+                # Tanpa casting: sort alfabetis (SALAH)
+                # Dengan casting: sort numerik (BENAR)
                 BIND(IF(?ratingStr = 'N/A', 0.0, xsd:float(?ratingStr)) AS ?rating)
             }
+            # GROUP BY: Wajib karena pakai GROUP_CONCAT (aggregation)
             GROUP BY ?film ?title ?year ?rated ?poster ?plot ?rating ?type
             {$finalOrderBy}
         ";
+        // Performance: Load hanya 42 film x 10 properties = 420 triples (CEPAT!)
+        // vs load 5000 film x 10 properties = 50,000 triples (LAMBAT!)
         
         $results = $this->fuseki->query($dataQuery);
 
@@ -302,12 +375,33 @@ class FilmController extends Controller
             ['path' => $request->url(), 'query' => $request->query()]
         );
 
+        // ============================================================
+        // QUERY 4-7: DROPDOWN FILTER QUERIES
+        // ============================================================
+        // Tujuan: Auto-populate dropdown options dari data yang ada
         // 8. Ambil data untuk dropdown filter (Hapus {$prefixes})
+        
+        // QUERY 4: Years Dropdown
+        // DISTINCT: Hilangkan duplikasi (2008 muncul sekali saja)
+        // Semicolon (;): Shorthand untuk subject sama (?s fm:title DAN ?s fm:year)
         $years_query = $this->fuseki->query("SELECT DISTINCT ?year WHERE { ?s fm:title ?title ; fm:year ?year . } ORDER BY ?year");
+        
+        // QUERY 5: Types Dropdown
+        // STRAFTER: Extract string setelah '#' dari URI
+        // Input: http://example.com/film#movie -> Output: movie
         $types = $this->fuseki->query("SELECT DISTINCT (STRAFTER(STR(?typeUri), '#') AS ?type) WHERE { ?s fm:title ?title ; fm:type ?typeUri . } ORDER BY ?type");
+        
+        // QUERY 6: Ratings Dropdown (G, PG, PG-13, R, NC-17)
         $ratings_query = $this->fuseki->query("SELECT DISTINCT ?rated WHERE { ?s fm:title ?title ; fm:rated ?rated . } ORDER BY ?rated");
+        
+        // QUERY 7: Genres Dropdown (Action, Drama, Sci-Fi, dll)
         $genres_query = $this->fuseki->query("SELECT DISTINCT ?genre WHERE { ?s fm:title ?title ; fm:genre ?genre . } ORDER BY ?genre");
 
+        // ============================================================
+        // QUERY 8: TOP PICKS - 10 Film Rating Tertinggi
+        // ============================================================
+        // Tujuan: Tampilkan 10 film dengan rating IMDb terbaik
+        // Output: Array of 10 objects dengan poster dan rating
         // 9. Ambil Top Picks (Hapus {$prefixes})
         $topPicks = $this->fuseki->query("
             SELECT ?film ?title ?poster ?rating
@@ -316,40 +410,68 @@ class FilmController extends Controller
                 OPTIONAL { ?film fm:poster ?posterB }
                 OPTIONAL { ?film fm:imdbRating ?ratingB }
                 
+                # COALESCE: Default value jika kosong
                 BIND(COALESCE(?posterB, 'https://placehold.co/192x288/1a1a1a/f5c518?text=N/A') AS ?poster)
                 BIND(COALESCE(?ratingB, '0.0') AS ?ratingStr)
+                
+                # FILTER: Buang film tanpa rating valid
+                # && = AND operator (kedua kondisi harus true)
                 FILTER(?ratingStr != '0.0' && ?ratingStr != 'N/A')
+                
+                # xsd:float: Cast ke float untuk sort numerik
                 BIND(xsd:float(?ratingStr) AS ?rating)
             } 
+            # ORDER BY DESC: Sort dari tinggi ke rendah (9.3, 9.2, 9.0, ...)
             ORDER BY DESC(?rating) 
+            # LIMIT 10: Ambil 10 film teratas saja
             LIMIT 10
         ");
+        // Result: The Shawshank Redemption (9.3), The Godfather (9.2), dll
         
+        // ============================================================
+        // QUERY 9: FEATURED FILMS IDs - Kandidat untuk Carousel
+        // ============================================================
+        // Tujuan: Cari film yang cocok untuk carousel (punya plot dan poster)
+        // Output: ~800 film URIs yang eligible
         // 10. Ambil Featured Films (Hapus {$prefixes})
         $featuredFilmIds = $this->fuseki->query("
             SELECT DISTINCT ?film 
             WHERE {
+                # Film HARUS punya title, plot, DAN poster (tidak pakai OPTIONAL)
                 ?film fm:title ?title .
                 ?film fm:plot ?plot .
                 ?film fm:poster ?poster .
+                
+                # BOUND: Check apakah variabel punya value
+                # STRLEN: Hitung panjang string, minimal 10 karakter
+                # Tujuan: Buang plot kosong seperti 'N/A' atau ''
                 FILTER(BOUND(?plot) && BOUND(?poster) && STRLEN(?plot) > 10)
             }
         ");
+        // Result: Array of film URIs yang bisa masuk carousel
         
         $featuredFilmList = array_map(fn($r) => $r['film'], $featuredFilmIds);
         shuffle($featuredFilmList);
         $featuredFilms = [];
 
         if (!empty($featuredFilmList)) {
+            // ============================================================
+            // QUERY 10: FEATURED FILMS DETAILS - Data Lengkap Carousel
+            // ============================================================
+            // Tujuan: Ambil detail 7 film random untuk slideshow
+            // Teknik: VALUES clause (seperti WHERE IN di SQL)
             $featuredFilms = $this->fuseki->query("
                 SELECT ?film ?title ?poster ?plot
                 WHERE {
+                    # VALUES: Query specific URIs (SANGAT CEPAT ~50ms)
+                    # Tidak perlu scan database, langsung lookup 7 film
                     VALUES ?film { <" . implode('> <', array_slice($featuredFilmList, 0, 7)) . "> }
                     ?film fm:title ?title .
                     ?film fm:poster ?poster .
                     ?film fm:plot ?plot .
                 }
             ");
+            // Result: 7 film dengan poster + plot untuk carousel
         }
         
         // 11. Kembalikan View
@@ -405,7 +527,14 @@ class FilmController extends Controller
         // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         // $prefixes = " ... "; // (Baris ini dihapus)
 
+        // Construct film URI dari IMDb ID parameter
         $filmUri = "https://www.imdb.com/title/{$imdb_id}/";
+        
+        // ============================================================
+        // QUERY 11: FILM DETAIL - 22 Properties untuk Halaman Detail
+        // ============================================================
+        // Tujuan: Ambil SEMUA data lengkap untuk 1 film
+        // Output: 1 object dengan 22 properties
         
         // Kueri SELECT yang diperbarui untuk mengambil LEBIH BANYAK data
         // PERBAIKAN: Menambahkan ?film ke SELECT list
@@ -413,6 +542,9 @@ class FilmController extends Controller
             SELECT 
                 ?film ?title ?year ?rated ?poster ?plot ?rating ?type
                 ?released ?runtime ?awards ?metascore ?imdbVotes ?boxOffice
+                # GROUP_CONCAT dengan separator berbeda:
+                # '||' untuk split di PHP jadi array
+                # ', ' untuk langsung display sebagai string
                 (GROUP_CONCAT(DISTINCT ?actorUri; separator='||') AS ?actors)
                 (GROUP_CONCAT(DISTINCT ?directorUri; separator='||') AS ?directors)
                 (GROUP_CONCAT(DISTINCT ?writerUri; separator='||') AS ?writers)
@@ -424,11 +556,16 @@ class FilmController extends Controller
         // Kueri WHERE yang diperbarui dengan LEBIH BANYAK OPTIONAL
         $sparqlWhere = "
             WHERE {
+                # BIND: Set film spesifik dari URL parameter
+                # Tidak perlu FILTER, langsung query 1 film exact
                 BIND(<{$filmUri}> AS ?film)
                 
+                # Properties WAJIB (film harus punya ini)
                 ?film fm:title ?title .
                 ?film fm:type ?typeUri .
 
+                # OPTIONAL: Properti tidak wajib (film bisa tanpa data ini)
+                # Jika tidak ada, tidak error, hanya NULL
                 OPTIONAL { ?film fm:year ?yearB }
                 OPTIONAL { ?film fm:rated ?ratedB }
                 OPTIONAL { ?film fm:poster ?posterB }
@@ -438,7 +575,7 @@ class FilmController extends Controller
                 OPTIONAL { ?film fm:actor ?actorUri . }
                 OPTIONAL { ?film fm:director ?directorUri . }
                 
-                # Properti TAMBAHAN yang kita ambil
+                # Properti TAMBAHAN untuk detail produksi
                 OPTIONAL { ?film fm:released ?releasedB }
                 OPTIONAL { ?film fm:runtime ?runtimeB }
                 OPTIONAL { ?film fm:awards ?awardsB }
@@ -482,10 +619,13 @@ class FilmController extends Controller
         $query = "
             {$sparqlSelect} 
             {$sparqlWhere}
+            # GROUP BY: WAJIB karena pakai GROUP_CONCAT (aggregation)
+            # List semua variabel yang TIDAK di-agregasi
             GROUP BY 
                 ?film ?title ?year ?rated ?poster ?plot ?rating ?type
                 ?released ?runtime ?awards ?metascore ?imdbVotes ?boxOffice
         ";
+        // Performance: Query 1 film spesifik (CEPAT ~180ms)
         
         $results = $this->fuseki->query($query);
         

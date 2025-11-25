@@ -98,7 +98,7 @@
                     
                     <input type="text" 
                            name="query" 
-                           placeholder="Cari judul, plot, tahun, atau aktor..."
+                           placeholder="Cari judul, plot, tahun, aktor, sutradara, penulis, atau IMDb ID (tt1234567)..."
                            value="{{ $query ?? '' }}"
                            class="w-full py-3 pl-4 pr-12 bg-white border-none rounded-md text-lg text-black focus:outline-none focus:ring-2 focus:ring-imdb-yellow placeholder-gray-500">
                     

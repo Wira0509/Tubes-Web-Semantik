@@ -66,10 +66,10 @@
     <!-- Navbar Sederhana -->
     <nav class="bg-imdb-gray border-b border-imdb-light-gray p-4 sticky top-0 z-50">
         <div class="container mx-auto max-w-6xl flex items-center justify-between">
-            <a href="{{ route('film.search') }}" class="text-2xl font-bold text-imdb-yellow">
+            <a href="{{ route('film.search', $searchQuery ? ['query' => $searchQuery] : []) }}" class="text-2xl font-bold text-imdb-yellow">
                 TetengFilm
             </a>
-            <a href="{{ route('film.search') }}" class="text-sm text-gray-300 hover:text-white transition-colors">
+            <a href="{{ route('film.search', $searchQuery ? ['query' => $searchQuery] : []) }}" class="text-sm text-gray-300 hover:text-white transition-colors">
                 &larr; Kembali ke Pencarian
             </a>
         </div>

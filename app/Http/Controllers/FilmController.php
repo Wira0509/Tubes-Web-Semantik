@@ -510,7 +510,7 @@ class FilmController extends Controller
     /**
      * Menampilkan halaman detail untuk satu film.
      */
-    public function show($imdb_id)
+    public function show(Request $request, $imdb_id)
     {
         // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         // === PERBAIKAN KEAMANAN & STABILITAS (TAMBAHAN) ===
@@ -680,8 +680,12 @@ class FilmController extends Controller
         $dbpediaData = $this->dbpedia->getFilmInfo($film['title'], $film['year']);
         $film['dbpedia'] = $dbpediaData;
 
+        // Ambil query pencarian dari request untuk ditampilkan kembali di search bar
+        $searchQuery = $request->input('query');
+
         return view('detail', [
-            'film' => $film
+            'film' => $film,
+            'searchQuery' => $searchQuery
         ]);
     }
 }

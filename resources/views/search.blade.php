@@ -313,7 +313,7 @@
 
                         <div class="relative z-10 h-full p-6 md:p-12 flex flex-col md:flex-row items-center gap-6 md:gap-10 h-full justify-center md:justify-start">
                             
-                            <a href="{{ route('film.show', $featuredId) }}" class="hidden md:block w-48 md:w-56 flex-shrink-0 shadow-[0_0_20px_rgba(0,0,0,0.5)] transition-transform transform hover:scale-105 duration-300">
+                            <a href="{{ route('film.show', $featuredId) . (request('query') ? '?query=' . urlencode(request('query')) : '') }}" class="hidden md:block w-48 md:w-56 flex-shrink-0 shadow-[0_0_20px_rgba(0,0,0,0.5)] transition-transform transform hover:scale-105 duration-300">
                                 <img src="{{ $featuredFilm['poster'] }}" alt="{{ $featuredFilm['title'] }} Poster" class="w-full h-auto rounded-lg border border-gray-600/50">
                             </a>
 
@@ -333,7 +333,7 @@
                                 </p>
                                 
                                 <div class="flex flex-col md:flex-row gap-4 justify-center md:justify-start">
-                                    <a href="{{ route('film.show', $featuredId) }}" class="inline-flex items-center justify-center gap-2 px-8 py-3 bg-imdb-yellow text-black font-bold text-lg rounded-full hover:bg-yellow-400 transition-all transform hover:-translate-y-1 shadow-lg">
+                                    <a href="{{ route('film.show', $featuredId) . (request('query') ? '?query=' . urlencode(request('query')) : '') }}" class="inline-flex items-center justify-center gap-2 px-8 py-3 bg-imdb-yellow text-black font-bold text-lg rounded-full hover:bg-yellow-400 transition-all transform hover:-translate-y-1 shadow-lg">
                                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
                                             <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
                                         </svg>
@@ -384,7 +384,7 @@
             <div class="flex overflow-x-auto space-x-4 pb-4 no-scrollbar scroll-smooth" x-ref="scroller" @scroll.debounce.100ms="checkScroll()" typeof="ItemList">
                 @foreach($topPicks as $pick)
                     @php($imdbId = last(explode('/', rtrim($pick['film'], '/'))))
-                    <a href="{{ route('film.show', $imdbId) }}" class="block w-48 flex-shrink-0 group scroll-snap-start" property="itemListElement" typeof="Movie">
+                    <a href="{{ route('film.show', $imdbId) . (request('query') ? '?query=' . urlencode(request('query')) : '') }}" class="block w-48 flex-shrink-0 group scroll-snap-start" property="itemListElement" typeof="Movie">
                         <div class="relative">
                             <img src="{{ $pick['poster'] }}" alt="{{ $pick['title'] }} Poster" property="image" class="w-full h-72 object-cover rounded-lg shadow-lg group-hover:opacity-80 transition-opacity duration-200">
                         </div>
@@ -422,7 +422,7 @@
             @forelse ($films as $film)
                 @php($imdbId = last(explode('/', rtrim($film['film'], '/'))))
                 
-                <a href="{{ route('film.show', $imdbId) }}" class="block group" property="itemListElement" typeof="Movie">
+                <a href="{{ route('film.show', $imdbId) . (request('query') ? '?query=' . urlencode(request('query')) : '') }}" class="block group" property="itemListElement" typeof="Movie">
                     <div class="relative">
                         <img src="{{ $film['poster'] }}" alt="{{ $film['title'] }} Poster" 
                              property="image"

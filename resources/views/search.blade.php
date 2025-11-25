@@ -25,6 +25,18 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="//unpkg.com/alpinejs" defer></script>
     <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            if (sessionStorage.getItem('scrollToResults') === 'true') {
+                sessionStorage.removeItem('scrollToResults');
+                setTimeout(() => {
+                    const element = document.getElementById('hasil-film');
+                    if (element) {
+                        element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                }, 300);
+            }
+        });
+        
         tailwind.config = {
             theme: {
                 extend: {
@@ -39,28 +51,32 @@
         }
     </script>
     <style>
-        /* CSS tambahan untuk menyembunyikan scrollbar horizontal */
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
-        /* Style kustom untuk dropdown filter */
+        .line-clamp-2 { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+        .line-clamp-3 { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+        
+        .searchable-dropdown-list::-webkit-scrollbar { width: 6px; }
+        .searchable-dropdown-list::-webkit-scrollbar-track { background: #1a1a1a; }
+        .searchable-dropdown-list::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+        .searchable-dropdown-list::-webkit-scrollbar-thumb:hover { background: #555; }
+        
         select.filter-dropdown {
             background-color: #1a1a1a;
             border: 1px solid #333;
             color: white;
             padding: 0.5rem 0.75rem;
             border-radius: 0.375rem;
-            -webkit-appearance: none; -moz-appearance: none; appearance: none;
-            background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%2Lxmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22%23aaa%22%3E%3Cpath%20d%3D%22M5.293%207.293a1%201%200%20011.414%200L10%2010.586l3.293-3.293a1%201%200%20111.414%201.414l-4%204a1%201%200%2001-1.414%200l-4-4a1%201%200%20010-1.414z%22%20%2F%3E%3C%2Fsvg%3E');
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22%23aaa%22%3E%3Cpath%20d%3D%22M5.293%207.293a1%201%200%20011.414%200L10%2010.586l3.293-3.293a1%201%200%20111.414%201.414l-4%204a1%201%200%2001-1.414%200l-4-4a1%201%200%20010-1.414z%22%20%2F%3E%3C%2Fsvg%3E');
             background-repeat: no-repeat;
             background-position: right 0.5rem center;
             background-size: 1.25em 1.25em;
-            padding-right: 2rem; /* Ruang untuk ikon panah */
+            padding-right: 2rem;
         }
-        
-        /* Helper untuk line-clamp (pembatasan teks) */
-        .line-clamp-2 { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-        .line-clamp-3 { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
     </style>
 </head>
 
@@ -98,7 +114,7 @@
                     
                     <input type="text" 
                            name="query" 
-                           placeholder="Cari judul, plot, tahun, aktor, sutradara, penulis, atau IMDb ID (tt1234567)..."
+                           placeholder="Cari judul, plot, tahun, negara, aktor, sutradara, penulis, atau IMDb ID (tt1234567)..."
                            value="{{ $query ?? '' }}"
                            class="w-full py-3 pl-4 pr-12 bg-white border-none rounded-md text-lg text-black focus:outline-none focus:ring-2 focus:ring-imdb-yellow placeholder-gray-500">
                     
@@ -172,58 +188,161 @@
                 </div>
                 
                 <form action="{{ route('film.search') }}" method="GET" class="space-y-4"
-                      x-data="{ isSubmitting: false }"
-                      @submit="isSubmitting = true">
+                      x-data="{ 
+                          isSubmitting: false,
+                          typeOpen: false,
+                          yearOpen: false,
+                          ratedOpen: false,
+                          genreOpen: false,
+                          typeSearch: '',
+                          yearSearch: '',
+                          ratedSearch: '',
+                          genreSearch: '',
+                          selectedType: '{{ request("type") ?? "" }}',
+                          selectedYear: '{{ request("year") ?? "" }}',
+                          selectedRated: '{{ request("rated") ?? "" }}',
+                          selectedGenre: '{{ request("genre") ?? "" }}',
+                          filteredTypes: {{ json_encode(array_map(fn($t) => ['value' => $t, 'label' => ucfirst($t)], $types)) }},
+                          filteredYears: {{ json_encode(array_map(fn($y) => ['value' => $y, 'label' => $y], $years)) }},
+                          filteredRatings: {{ json_encode(array_map(fn($r) => ['value' => $r, 'label' => $r], $ratings)) }},
+                          filteredGenres: {{ json_encode(array_map(fn($g) => ['value' => $g, 'label' => $g], $genres)) }},
+                          allTypes: {{ json_encode(array_map(fn($t) => ['value' => $t, 'label' => ucfirst($t)], $types)) }},
+                          allYears: {{ json_encode(array_map(fn($y) => ['value' => $y, 'label' => $y], $years)) }},
+                          allRatings: {{ json_encode(array_map(fn($r) => ['value' => $r, 'label' => $r], $ratings)) }},
+                          allGenres: {{ json_encode(array_map(fn($g) => ['value' => $g, 'label' => $g], $genres)) }},
+                          filterTypes() {
+                              this.filteredTypes = this.allTypes.filter(item => 
+                                  item.label.toLowerCase().includes(this.typeSearch.toLowerCase())
+                              );
+                          },
+                          filterYears() {
+                              this.filteredYears = this.allYears.filter(item => 
+                                  item.label.toString().includes(this.yearSearch)
+                              );
+                          },
+                          filterRatings() {
+                              this.filteredRatings = this.allRatings.filter(item => 
+                                  item.label.toLowerCase().includes(this.ratedSearch.toLowerCase())
+                              );
+                          },
+                          filterGenres() {
+                              this.filteredGenres = this.allGenres.filter(item => 
+                                  item.label.toLowerCase().includes(this.genreSearch.toLowerCase())
+                              );
+                          }
+                      }"
+                      @submit="isSubmitting = true"
+                      @click.away="typeOpen = false; yearOpen = false; ratedOpen = false; genreOpen = false">
                     
                     <input type="hidden" name="query" value="{{ $currentFilters['query'] ?? '' }}">
                     <input type="hidden" name="letter" value="{{ $currentFilters['letter'] ?? '' }}">
+                    <input type="hidden" name="type" x-model="selectedType">
+                    <input type="hidden" name="year" x-model="selectedYear">
+                    <input type="hidden" name="rated" x-model="selectedRated">
+                    <input type="hidden" name="genre" x-model="selectedGenre">
 
-                    <div>
-                        <label for="type_filter" class="block text-sm font-medium text-gray-300 mb-1">Tipe</label>
-                        <select name="type" id="type_filter" class="filter-dropdown w-full">
-                            <option value="">Semua Tipe</option>
-                            @foreach($types as $type)
-                                <option value="{{ $type }}" {{ (request('type') == $type) ? 'selected' : '' }}>
-                                    {{ ucfirst($type) }}
-                                </option>
-                            @endforeach
-                        </select>
+                    <div class="relative">
+                        <label class="block text-sm font-medium text-gray-300 mb-1">Tipe</label>
+                        <button type="button" @click="typeOpen = !typeOpen; yearOpen = false; ratedOpen = false; genreOpen = false" 
+                                class="w-full bg-imdb-gray border border-gray-700 text-white px-3 py-2 rounded-md text-left flex items-center justify-between hover:border-gray-600">
+                            <span x-text="selectedType ? (allTypes.find(t => t.value === selectedType)?.label || 'Semua Tipe') : 'Semua Tipe'"></span>
+                            <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </button>
+                        <div x-show="typeOpen" x-transition class="absolute z-50 w-full mt-1 bg-imdb-gray border border-gray-700 rounded-md shadow-lg" style="display: none;">
+                            <input type="text" x-model="typeSearch" @input="filterTypes()" placeholder="Cari tipe..." 
+                                   class="w-full px-3 py-2 bg-imdb-light-gray text-white border-b border-gray-700 focus:outline-none focus:ring-2 focus:ring-imdb-yellow rounded-t-md">
+                            <ul class="max-h-60 overflow-y-auto searchable-dropdown-list">
+                                <li @click="selectedType = ''; typeOpen = false; typeSearch = ''" 
+                                    class="px-3 py-2 hover:bg-imdb-light-gray cursor-pointer" :class="selectedType === '' ? 'bg-imdb-yellow text-black font-bold' : ''">
+                                    Semua Tipe
+                                </li>
+                                <template x-for="item in filteredTypes" :key="item.value">
+                                    <li @click="selectedType = item.value; typeOpen = false; typeSearch = ''" 
+                                        x-text="item.label"
+                                        class="px-3 py-2 hover:bg-imdb-light-gray cursor-pointer" 
+                                        :class="selectedType === item.value ? 'bg-imdb-yellow text-black font-bold' : ''">
+                                    </li>
+                                </template>
+                            </ul>
+                        </div>
                     </div>
 
-                    <div>
-                        <label for="year_filter" class="block text-sm font-medium text-gray-300 mb-1">Tahun</label>
-                        <select name="year" id="year_filter" class="filter-dropdown w-full">
-                            <option value="">Semua Tahun</option>
-                            @foreach($years as $year)
-                                <option value="{{ $year }}" {{ (request('year') == $year) ? 'selected' : '' }}>
-                                    {{ $year }}
-                                </option>
-                            @endforeach
-                        </select>
+                    <div class="relative">
+                        <label class="block text-sm font-medium text-gray-300 mb-1">Tahun</label>
+                        <button type="button" @click="yearOpen = !yearOpen; typeOpen = false; ratedOpen = false; genreOpen = false" 
+                                class="w-full bg-imdb-gray border border-gray-700 text-white px-3 py-2 rounded-md text-left flex items-center justify-between hover:border-gray-600">
+                            <span x-text="selectedYear || 'Semua Tahun'"></span>
+                            <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </button>
+                        <div x-show="yearOpen" x-transition class="absolute z-50 w-full mt-1 bg-imdb-gray border border-gray-700 rounded-md shadow-lg" style="display: none;">
+                            <input type="text" x-model="yearSearch" @input="filterYears()" placeholder="Cari tahun..." 
+                                   class="w-full px-3 py-2 bg-imdb-light-gray text-white border-b border-gray-700 focus:outline-none focus:ring-2 focus:ring-imdb-yellow rounded-t-md">
+                            <ul class="max-h-60 overflow-y-auto searchable-dropdown-list">
+                                <li @click="selectedYear = ''; yearOpen = false; yearSearch = ''" 
+                                    class="px-3 py-2 hover:bg-imdb-light-gray cursor-pointer" :class="selectedYear === '' ? 'bg-imdb-yellow text-black font-bold' : ''">
+                                    Semua Tahun
+                                </li>
+                                <template x-for="item in filteredYears" :key="item.value">
+                                    <li @click="selectedYear = item.value; yearOpen = false; yearSearch = ''" 
+                                        x-text="item.label"
+                                        class="px-3 py-2 hover:bg-imdb-light-gray cursor-pointer" 
+                                        :class="selectedYear === item.value ? 'bg-imdb-yellow text-black font-bold' : ''">
+                                    </li>
+                                </template>
+                            </ul>
+                        </div>
                     </div>
                     
-                    <div>
-                        <label for="rated_filter" class="block text-sm font-medium text-gray-300 mb-1">Rating Usia</label>
-                        <select name="rated" id="rated_filter" class="filter-dropdown w-full">
-                            <option value="">Semua Rating</option>
-                            @foreach($ratings as $rated)
-                                <option value="{{ $rated }}" {{ (request('rated') == $rated) ? 'selected' : '' }}>
-                                    {{ $rated }}
-                                </option>
-                            @endforeach
-                        </select>
+                    <div class="relative">
+                        <label class="block text-sm font-medium text-gray-300 mb-1">Rating Usia</label>
+                        <button type="button" @click="ratedOpen = !ratedOpen; typeOpen = false; yearOpen = false; genreOpen = false" 
+                                class="w-full bg-imdb-gray border border-gray-700 text-white px-3 py-2 rounded-md text-left flex items-center justify-between hover:border-gray-600">
+                            <span x-text="selectedRated || 'Semua Rating'"></span>
+                            <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </button>
+                        <div x-show="ratedOpen" x-transition class="absolute z-50 w-full mt-1 bg-imdb-gray border border-gray-700 rounded-md shadow-lg" style="display: none;">
+                            <input type="text" x-model="ratedSearch" @input="filterRatings()" placeholder="Cari rating..." 
+                                   class="w-full px-3 py-2 bg-imdb-light-gray text-white border-b border-gray-700 focus:outline-none focus:ring-2 focus:ring-imdb-yellow rounded-t-md">
+                            <ul class="max-h-60 overflow-y-auto searchable-dropdown-list">
+                                <li @click="selectedRated = ''; ratedOpen = false; ratedSearch = ''" 
+                                    class="px-3 py-2 hover:bg-imdb-light-gray cursor-pointer" :class="selectedRated === '' ? 'bg-imdb-yellow text-black font-bold' : ''">
+                                    Semua Rating
+                                </li>
+                                <template x-for="item in filteredRatings" :key="item.value">
+                                    <li @click="selectedRated = item.value; ratedOpen = false; ratedSearch = ''" 
+                                        x-text="item.label"
+                                        class="px-3 py-2 hover:bg-imdb-light-gray cursor-pointer" 
+                                        :class="selectedRated === item.value ? 'bg-imdb-yellow text-black font-bold' : ''">
+                                    </li>
+                                </template>
+                            </ul>
+                        </div>
                     </div>
                     
-                    <div>
-                        <label for="genre_filter" class="block text-sm font-medium text-gray-300 mb-1">Genre</label>
-                        <select name="genre" id="genre_filter" class="filter-dropdown w-full">
-                            <option value="">Semua Genre</option>
-                            @foreach($genres as $genre)
-                                <option value="{{ $genre }}" {{ (request('genre') == $genre) ? 'selected' : '' }}>
-                                    {{ $genre }}
-                                </option>
-                            @endforeach
-                        </select>
+                    <div class="relative">
+                        <label class="block text-sm font-medium text-gray-300 mb-1">Genre</label>
+                        <button type="button" @click="genreOpen = !genreOpen; typeOpen = false; yearOpen = false; ratedOpen = false" 
+                                class="w-full bg-imdb-gray border border-gray-700 text-white px-3 py-2 rounded-md text-left flex items-center justify-between hover:border-gray-600">
+                            <span x-text="selectedGenre || 'Semua Genre'"></span>
+                            <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </button>
+                        <div x-show="genreOpen" x-transition class="absolute z-50 w-full mt-1 bg-imdb-gray border border-gray-700 rounded-md shadow-lg" style="display: none;">
+                            <input type="text" x-model="genreSearch" @input="filterGenres()" placeholder="Cari genre..." 
+                                   class="w-full px-3 py-2 bg-imdb-light-gray text-white border-b border-gray-700 focus:outline-none focus:ring-2 focus:ring-imdb-yellow rounded-t-md">
+                            <ul class="max-h-60 overflow-y-auto searchable-dropdown-list">
+                                <li @click="selectedGenre = ''; genreOpen = false; genreSearch = ''" 
+                                    class="px-3 py-2 hover:bg-imdb-light-gray cursor-pointer" :class="selectedGenre === '' ? 'bg-imdb-yellow text-black font-bold' : ''">
+                                    Semua Genre
+                                </li>
+                                <template x-for="item in filteredGenres" :key="item.value">
+                                    <li @click="selectedGenre = item.value; genreOpen = false; genreSearch = ''" 
+                                        x-text="item.label"
+                                        class="px-3 py-2 hover:bg-imdb-light-gray cursor-pointer" 
+                                        :class="selectedGenre === item.value ? 'bg-imdb-yellow text-black font-bold' : ''">
+                                    </li>
+                                </template>
+                            </ul>
+                        </div>
                     </div>
                     <div>
                         <label for="sort_filter" class="block text-sm font-medium text-gray-300 mb-1">Urutkan</label>
@@ -241,7 +360,8 @@
                         <button type="submit" 
                                 class="flex-1 px-4 py-2 text-center font-bold text-black bg-imdb-yellow rounded-md hover:bg-yellow-300
                                        disabled:bg-gray-500 disabled:cursor-not-allowed"
-                                :disabled="isSubmitting">
+                                :disabled="isSubmitting"
+                                @click="sessionStorage.setItem('scrollToResults', 'true')">
                             <span x-show="!isSubmitting">Terapkan Filter</span>
                             <span x-show="isSubmitting" style="display: none;">Memfilter...</span>
                         </button>
@@ -313,7 +433,7 @@
 
                         <div class="relative z-10 h-full p-6 md:p-12 flex flex-col md:flex-row items-center gap-6 md:gap-10 h-full justify-center md:justify-start">
                             
-                            <a href="{{ route('film.show', $featuredId) . (request('query') ? '?query=' . urlencode(request('query')) : '') }}" class="hidden md:block w-48 md:w-56 flex-shrink-0 shadow-[0_0_20px_rgba(0,0,0,0.5)] transition-transform transform hover:scale-105 duration-300">
+                            <a href="{{ route('film.show', $featuredId) . '?' . http_build_query(request()->only(['query', 'letter', 'type', 'year', 'rated', 'genre', 'sort', 'page'])) }}" class="hidden md:block w-48 md:w-56 flex-shrink-0 shadow-[0_0_20px_rgba(0,0,0,0.5)] transition-transform transform hover:scale-105 duration-300">
                                 <img src="{{ $featuredFilm['poster'] }}" alt="{{ $featuredFilm['title'] }} Poster" class="w-full h-auto rounded-lg border border-gray-600/50">
                             </a>
 
@@ -333,7 +453,7 @@
                                 </p>
                                 
                                 <div class="flex flex-col md:flex-row gap-4 justify-center md:justify-start">
-                                    <a href="{{ route('film.show', $featuredId) . (request('query') ? '?query=' . urlencode(request('query')) : '') }}" class="inline-flex items-center justify-center gap-2 px-8 py-3 bg-imdb-yellow text-black font-bold text-lg rounded-full hover:bg-yellow-400 transition-all transform hover:-translate-y-1 shadow-lg">
+                                    <a href="{{ route('film.show', $featuredId) . '?' . http_build_query(request()->only(['query', 'letter', 'type', 'year', 'rated', 'genre', 'sort', 'page'])) }}" class="inline-flex items-center justify-center gap-2 px-8 py-3 bg-imdb-yellow text-black font-bold text-lg rounded-full hover:bg-yellow-400 transition-all transform hover:-translate-y-1 shadow-lg">
                                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
                                             <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
                                         </svg>
@@ -384,7 +504,7 @@
             <div class="flex overflow-x-auto space-x-4 pb-4 no-scrollbar scroll-smooth" x-ref="scroller" @scroll.debounce.100ms="checkScroll()" typeof="ItemList">
                 @foreach($topPicks as $pick)
                     @php($imdbId = last(explode('/', rtrim($pick['film'], '/'))))
-                    <a href="{{ route('film.show', $imdbId) . (request('query') ? '?query=' . urlencode(request('query')) : '') }}" class="block w-48 flex-shrink-0 group scroll-snap-start" property="itemListElement" typeof="Movie">
+                    <a href="{{ route('film.show', $imdbId) . '?' . http_build_query(request()->only(['query', 'letter', 'type', 'year', 'rated', 'genre', 'sort', 'page'])) }}" class="block w-48 flex-shrink-0 group scroll-snap-start" property="itemListElement" typeof="Movie">
                         <div class="relative">
                             <img src="{{ $pick['poster'] }}" alt="{{ $pick['title'] }} Poster" property="image" class="w-full h-72 object-cover rounded-lg shadow-lg group-hover:opacity-80 transition-opacity duration-200">
                         </div>
@@ -407,7 +527,7 @@
             </button>
         </section>
         
-        <h1 class="text-2xl font-bold text-white mb-6 border-l-4 border-imdb-yellow pl-3">
+        <h1 id="hasil-film" class="text-2xl font-bold text-white mb-6 border-l-4 border-imdb-yellow pl-3 scroll-mt-20">
             @if (request('query'))
                 Hasil Pencarian untuk "{{ request('query') }}"
             @elseif (request()->hasAny(['letter', 'year', 'type', 'rated', 'genre']))
@@ -422,7 +542,7 @@
             @forelse ($films as $film)
                 @php($imdbId = last(explode('/', rtrim($film['film'], '/'))))
                 
-                <a href="{{ route('film.show', $imdbId) . (request('query') ? '?query=' . urlencode(request('query')) : '') }}" class="block group" property="itemListElement" typeof="Movie">
+                <a href="{{ route('film.show', $imdbId) . '?' . http_build_query(request()->only(['query', 'letter', 'type', 'year', 'rated', 'genre', 'sort', 'page'])) }}" class="block group" property="itemListElement" typeof="Movie">
                     <div class="relative">
                         <img src="{{ $film['poster'] }}" alt="{{ $film['title'] }} Poster" 
                              property="image"

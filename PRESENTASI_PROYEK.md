@@ -1000,4 +1000,950 @@ Proyek ini adalah aplikasi web IMDB Clone yang menggunakan:
 
 ---
 
+## 🛣️ **7. ROUTES (web.php) - Penjelasan Lengkap**
+
+### **7.1. Struktur Routes**
+
+```php
+Route::get('/', [FilmController::class, 'search'])->name('film.search');
+Route::get('/film/{imdb_id}', [FilmController::class, 'show'])->name('film.show');
+```
+
+**Penjelasan:**
+- **Route 1**: `GET /` → Method `search()` di `FilmController`
+  - **Tujuan**: Halaman utama untuk pencarian dan daftar film
+  - **Named Route**: `film.search` (bisa dipanggil dengan `route('film.search')`)
+  - **Parameter**: Query string untuk filter (query, year, genre, dll)
+
+- **Route 2**: `GET /film/{imdb_id}` → Method `show()` di `FilmController`
+  - **Tujuan**: Halaman detail untuk 1 film spesifik
+  - **Parameter**: `{imdb_id}` → IMDb ID seperti `tt0371746`
+  - **Named Route**: `film.show` (bisa dipanggil dengan `route('film.show', ['imdb_id' => 'tt0371746'])`)
+
+**Contoh URL:**
+- `http://localhost/` → Halaman search
+- `http://localhost/?query=iron+man&year=2008` → Search dengan filter
+- `http://localhost/film/tt0371746` → Detail film Iron Man
+
+**Mengapa Named Route?**
+- Mudah di-maintain (jika URL berubah, cukup ubah di 1 tempat)
+- Type-safe (Laravel akan error jika route tidak ada)
+- Bisa generate URL dengan mudah: `route('film.show', ['imdb_id' => 'tt0371746'])`
+
+---
+
+## 🎨 **8. VIEWS - Web Semantik Implementation**
+
+### **8.1. Open Graph Protocol (OGP) - search.blade.php**
+
+```html
+<html lang="id" prefix="og: http://ogp.me/ns# schema: http://schema.org/" vocab="http://schema.org/">
+<head>
+    <meta property="og:title" content="TetengFilm - Database Film Terlengkap">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ url()->current() }}">
+    <meta property="og:image" content="{{ asset('images/tetengfilm-logo.png') }}">
+    <meta property="og:description" content="Temukan film favorit Anda...">
+    <meta property="og:site_name" content="TetengFilm">
+    <meta property="og:locale" content="id_ID">
+```
+
+**Penjelasan:**
+- **Open Graph Protocol (OGP)**: Standar metadata untuk social media sharing
+- **Tujuan**: Ketika link dibagikan di Facebook, Twitter, WhatsApp, dll, akan tampil preview yang menarik
+- **`prefix="og: http://ogp.me/ns#"`**: Deklarasi namespace OGP di HTML
+- **Property yang digunakan**:
+  - `og:title`: Judul yang muncul di preview
+  - `og:type`: Tipe konten (`website` untuk halaman search, `video.movie` untuk detail film)
+  - `og:url`: URL canonical (untuk menghindari duplikasi)
+  - `og:image`: Gambar thumbnail untuk preview
+  - `og:description`: Deskripsi singkat
+  - `og:site_name`: Nama website
+  - `og:locale`: Bahasa (id_ID = Indonesia)
+
+**Manfaat:**
+- ✅ Preview menarik saat share di social media
+- ✅ SEO lebih baik (search engine bisa baca metadata)
+- ✅ User experience lebih baik (tidak hanya URL plain text)
+
+---
+
+### **8.2. Open Graph Protocol (OGP) - detail.blade.php**
+
+```html
+<html lang="id" prefix="og: http://ogp.me/ns# video: http://ogp.me/ns/video# schema: http://schema.org/" vocab="http://schema.org/" typeof="Movie">
+<head>
+    <meta property="og:title" content="{{ $film['title'] }} ({{ $film['year'] }})">
+    <meta property="og:type" content="video.movie">
+    <meta property="og:image" content="{{ $film['poster'] }}">
+    
+    @if($film['year'] !== 'N/A')
+    <meta property="video:release_date" content="{{ $film['year'] }}">
+    @endif
+    
+    @if(isset($film['actors_list']) && !empty($film['actors_list']))
+        @foreach(array_slice($film['actors_list'], 0, 3) as $actor)
+    <meta property="video:actor" content="{{ $actor }}">
+        @endforeach
+    @endif
+    
+    @if(isset($film['directors_list']) && !empty($film['directors_list']))
+        @foreach($film['directors_list'] as $director)
+    <meta property="video:director" content="{{ $director }}">
+        @endforeach
+    @endif
+```
+
+**Penjelasan:**
+- **`prefix="video: http://ogp.me/ns/video#"`**: Namespace tambahan untuk video/movie
+- **`typeof="Movie"`**: Deklarasi bahwa halaman ini adalah Movie (untuk RDFa)
+- **`og:type="video.movie"`**: Tipe konten spesifik untuk film
+- **`video:release_date`**: Tahun rilis film
+- **`video:actor`**: Daftar aktor (maksimal 3 untuk preview)
+- **`video:director`**: Daftar sutradara
+
+**Mengapa penting?**
+- Social media bisa menampilkan informasi lengkap film (judul, tahun, aktor, sutradara)
+- Preview lebih informatif dan menarik
+
+---
+
+### **8.3. Schema.org RDFa - Structured Data Markup**
+
+#### **A. RDFa di search.blade.php**
+
+```html
+<div class="flex overflow-x-auto space-x-4 pb-4 no-scrollbar scroll-smooth" 
+     typeof="ItemList">
+    @foreach($topPicks as $pick)
+        <a href="..." class="block w-48 flex-shrink-0 group scroll-snap-start" 
+           property="itemListElement" 
+           typeof="Movie">
+            <img src="..." property="image" class="...">
+            <div class="mt-3">
+                <div class="flex items-center" property="aggregateRating" typeof="AggregateRating">
+                    <span class="text-imdb-yellow font-bold">★</span>
+                    <span class="text-white font-semibold ml-1.5" property="ratingValue">
+                        {{ $pick['rating'] }}
+                    </span>
+                    <meta property="bestRating" content="10">
+                </div>
+                <h4 class="text-white font-semibold mt-1 truncate" property="name">
+                    {{ $pick['title'] }}
+                </h4>
+            </div>
+        </a>
+    @endforeach
+</div>
+```
+
+**Penjelasan:**
+- **RDFa (Resource Description Framework in Attributes)**: Menambahkan metadata semantik langsung di HTML
+- **`typeof="ItemList"`**: Container untuk list film (Top Picks)
+- **`property="itemListElement"`**: Setiap item dalam list
+- **`typeof="Movie"`**: Setiap item adalah Movie
+- **Properties yang digunakan**:
+  - `property="image"`: URL poster film
+  - `property="name"`: Judul film
+  - `property="aggregateRating"`: Rating dengan tipe AggregateRating
+  - `property="ratingValue"`: Nilai rating (contoh: 8.5)
+  - `property="bestRating"`: Rating maksimal (10)
+
+**Manfaat:**
+- ✅ Search engine (Google) bisa baca structured data
+- ✅ Bisa muncul di Google Rich Results (dengan rating bintang)
+- ✅ SEO lebih baik
+
+---
+
+#### **B. RDFa di detail.blade.php**
+
+```html
+<html lang="id" ... vocab="http://schema.org/" typeof="Movie">
+<body>
+    <img src="..." property="image" class="...">
+    
+    <div property="aggregateRating" typeof="AggregateRating">
+        <span property="ratingValue">{{ $film['rating'] }}</span>
+        <span property="bestRating">10</span>
+        <span property="ratingCount">{{ $film['imdbVotes'] }}</span>
+    </div>
+    
+    <h1 property="name">{{ $film['title'] }}</h1>
+    
+    <span property="contentRating">{{ $film['rated'] }}</span>
+    <span property="datePublished">{{ $film['year'] }}</span>
+    <span property="duration">{{ $film['runtime'] ?? 'N/A' }}</span>
+    
+    <p property="description">{{ $film['plot'] }}</p>
+    
+    <span property="genre">{{ $genre }}</span>
+    
+    <span property="director" typeof="Person">
+        <span property="name">{{ $director }}</span>
+    </span>
+    
+    <span property="author" typeof="Person">
+        <span property="name">{{ $writer }}</span>
+    </span>
+    
+    <span property="actor" typeof="Person">
+        <span property="name">{{ $actor }}</span>
+    </span>
+    
+    <span property="inLanguage">{{ $film['languages'] }}</span>
+    <span property="countryOfOrigin">{{ $film['countries'] }}</span>
+</body>
+</html>
+```
+
+**Penjelasan:**
+- **`vocab="http://schema.org/"`**: Vocabulary yang digunakan (Schema.org)
+- **`typeof="Movie"`**: Root element adalah Movie
+- **Properties Schema.org yang digunakan**:
+  - `image`: Poster film
+  - `name`: Judul film
+  - `description`: Plot/sinopsis
+  - `datePublished`: Tahun rilis
+  - `contentRating`: Rating usia (PG-13, R, dll)
+  - `duration`: Durasi film
+  - `genre`: Genre film
+  - `aggregateRating`: Rating dengan detail (value, bestRating, ratingCount)
+  - `director` (typeof="Person"): Sutradara dengan property `name`
+  - `author` (typeof="Person"): Penulis dengan property `name`
+  - `actor` (typeof="Person"): Aktor dengan property `name`
+  - `inLanguage`: Bahasa
+  - `countryOfOrigin`: Negara produksi
+
+**Manfaat:**
+- ✅ Google bisa menampilkan Rich Snippets (dengan rating, durasi, dll)
+- ✅ Data terstruktur untuk search engine
+- ✅ Bisa muncul di Knowledge Graph Google
+- ✅ Voice search lebih akurat
+
+---
+
+### **8.4. Twitter Card Meta Tags**
+
+```html
+{{-- Twitter Card Meta Tags --}}
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="TetengFilm - Database Film Terlengkap">
+<meta name="twitter:description" content="Temukan film favorit Anda...">
+<meta name="twitter:image" content="{{ asset('images/tetengfilm-logo.png') }}">
+```
+
+**Penjelasan:**
+- **Twitter Card**: Format khusus untuk preview di Twitter/X
+- **`twitter:card`**: Tipe card (`summary_large_image` = gambar besar di atas)
+- **Tujuan**: 
+  - Preview menarik saat link di-tweet
+  - Gambar besar (1200x630px recommended) untuk visual impact
+  - Deskripsi singkat untuk context
+
+**Perbedaan dengan OGP:**
+- OGP: Universal (Facebook, LinkedIn, WhatsApp, dll)
+- Twitter Card: Spesifik untuk Twitter/X
+- Best practice: Gunakan keduanya untuk kompatibilitas maksimal
+
+---
+
+### **8.5. Wikipedia & IMDb Links (Linked Data)**
+
+```html
+{{-- Wikipedia Reference Link --}}
+@php
+    $wikipediaTitle = str_replace(' ', '_', $film['title']);
+    $imdbId = last(explode('/', rtrim($film['film'], '/')));
+@endphp
+<meta property="og:see_also" content="https://en.wikipedia.org/wiki/{{ $wikipediaTitle }}">
+<meta property="og:see_also" content="https://www.imdb.com/title/{{ $imdbId }}/">
+<link rel="alternate" type="text/html" href="https://en.wikipedia.org/wiki/{{ $wikipediaTitle }}" title="Wikipedia Article">
+```
+
+**Penjelasan:**
+- **Linked Data**: Menghubungkan data dengan sumber eksternal (Wikipedia, IMDb)
+- **`og:see_also`**: Property OGP untuk referensi ke resource terkait
+- **`rel="alternate"`**: HTML link relation untuk alternatif resource
+- **Tujuan**: 
+  - Search engine tahu ada hubungan dengan Wikipedia dan IMDb
+  - User bisa akses sumber data asli
+  - Meningkatkan credibility data
+  - Membangun Linked Data network
+
+**Linked Data Principles:**
+- ✅ **URIs**: Setiap resource punya URI unik
+- ✅ **HTTP**: Bisa diakses via HTTP
+- ✅ **RDF**: Data dalam format RDF
+- ✅ **Links**: Terhubung dengan resource lain
+
+---
+
+### **8.6. RDFa Vocabulary Declaration**
+
+```html
+<html lang="id" 
+      prefix="og: http://ogp.me/ns# 
+              video: http://ogp.me/ns/video# 
+              schema: http://schema.org/" 
+      vocab="http://schema.org/" 
+      typeof="Movie">
+```
+
+**Penjelasan:**
+- **`prefix`**: Deklarasi namespace untuk OGP
+  - `og: http://ogp.me/ns#` → Prefix untuk Open Graph
+  - `video: http://ogp.me/ns/video#` → Prefix untuk video/movie properties
+  - `schema: http://schema.org/` → Prefix untuk Schema.org (optional, karena sudah ada vocab)
+  
+- **`vocab`**: Default vocabulary untuk RDFa (Schema.org)
+  - Semua property tanpa prefix akan menggunakan Schema.org
+  - Contoh: `property="name"` = `schema:name`
+
+- **`typeof="Movie"`**: Deklarasi tipe resource di root element
+  - Menandakan bahwa halaman ini merepresentasikan Movie
+  - Semua property di dalam akan menjadi property dari Movie
+
+**Cara Kerja RDFa:**
+1. Browser render HTML normal (user tidak melihat perbedaan)
+2. Search engine crawler baca `property` dan `typeof` attributes
+3. Crawler extract structured data berdasarkan vocabulary (Schema.org)
+4. Data ditampilkan di search results sebagai Rich Snippets
+
+**Contoh Structured Data yang Terbentuk:**
+```json
+{
+  "@type": "Movie",
+  "name": "Iron Man",
+  "image": "https://...",
+  "aggregateRating": {
+    "@type": "AggregateRating",
+    "ratingValue": "7.9",
+    "bestRating": "10",
+    "ratingCount": "1234567"
+  },
+  "director": {
+    "@type": "Person",
+    "name": "Jon Favreau"
+  }
+}
+```
+
+---
+
+### **8.7. RDFa Nested Properties**
+
+```html
+<span property="director" typeof="Person">
+    <span property="name" class="text-imdb-yellow">{{ $director }}</span>
+</span>
+
+<span property="actor" typeof="Person">
+    <span property="name">{{ $actor }}</span>
+</span>
+```
+
+**Penjelasan:**
+- **Nested Properties**: Property di dalam property
+- **`typeof="Person"`**: Setiap director/actor adalah Person (bukan string)
+- **Struktur yang terbentuk**:
+  ```json
+  {
+    "director": {
+      "@type": "Person",
+      "name": "Jon Favreau"
+    },
+    "actor": [
+      {
+        "@type": "Person",
+        "name": "Robert Downey Jr."
+      }
+    ]
+  }
+  ```
+
+**Mengapa penting?**
+- ✅ Data lebih terstruktur (bukan hanya string)
+- ✅ Search engine tahu bahwa "Jon Favreau" adalah Person
+- ✅ Bisa di-link dengan data Person lain di web
+- ✅ Voice search lebih akurat ("Who directed Iron Man?")
+
+---
+
+### **8.8. RDFa ItemList Pattern**
+
+```html
+<div typeof="ItemList">
+    @foreach($topPicks as $pick)
+        <a href="..." property="itemListElement" typeof="Movie">
+            <img property="image" src="...">
+            <span property="name">{{ $pick['title'] }}</span>
+            <div property="aggregateRating" typeof="AggregateRating">
+                <span property="ratingValue">{{ $pick['rating'] }}</span>
+            </div>
+        </a>
+    @endforeach
+</div>
+```
+
+**Penjelasan:**
+- **ItemList**: Schema.org type untuk list items
+- **`property="itemListElement"`**: Setiap item dalam list
+- **Struktur yang terbentuk**:
+  ```json
+  {
+    "@type": "ItemList",
+    "itemListElement": [
+      {
+        "@type": "Movie",
+        "name": "The Shawshank Redemption",
+        "image": "...",
+        "aggregateRating": {
+          "ratingValue": "9.3"
+        }
+      },
+      {
+        "@type": "Movie",
+        "name": "The Godfather",
+        ...
+      }
+    ]
+  }
+  ```
+
+**Manfaat:**
+- ✅ Google bisa menampilkan carousel di search results
+- ✅ Rich results untuk "top movies" atau "best rated movies"
+- ✅ Structured data untuk list/collection
+
+---
+
+## ⚙️ **9. KONFIGURASI - Environment Variables**
+
+### **9.1. FUSEKI_ENDPOINT Configuration**
+
+```env
+FUSEKI_ENDPOINT=http://localhost:3030/tubeswsfilm/query
+```
+
+**Penjelasan:**
+- **Apache Fuseki Endpoint**: URL untuk SPARQL query endpoint
+- **Format**: `http://[host]:[port]/[dataset]/query`
+  - `localhost:3030`: Default Fuseki server
+  - `tubeswsfilm`: Nama dataset/database
+  - `query`: Endpoint untuk SELECT queries
+- **Digunakan di**: `FusekiService::__construct()`
+
+**Cara Setup:**
+1. Install Apache Fuseki
+2. Create dataset baru dengan nama `tubeswsfilm`
+3. Import file RDF (`film_marvel_dc.rdf`) ke dataset
+4. Set `FUSEKI_ENDPOINT` di `.env`
+
+**Alternative Endpoints:**
+- `http://localhost:3030/tubeswsfilm/update` → Untuk INSERT/UPDATE/DELETE
+- `http://localhost:3030/tubeswsfilm/data` → Untuk upload RDF data
+
+---
+
+### **9.2. Database Configuration**
+
+```env
+DB_CONNECTION=sqlite
+DB_DATABASE=database/database.sqlite
+```
+
+**Penjelasan:**
+- **SQLite**: Database untuk Laravel (users, sessions, dll)
+- **Tidak digunakan untuk data film**: Data film disimpan di Fuseki (RDF)
+- **Hanya untuk**: Laravel internal (authentication, cache, dll)
+
+**Mengapa 2 Database?**
+- **SQLite**: Untuk Laravel framework needs (sessions, users)
+- **Fuseki**: Untuk data film (RDF/SPARQL)
+- **Separation of concerns**: Framework data vs Business data
+
+---
+
+## 📄 **10. RDF DATA FILE - Struktur Data**
+
+### **9.1. File RDF: film_marvel_dc.rdf**
+
+```xml
+<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:fm="http://www.example.com/film#"
+         xmlns:person="http://www.example.com/person#">
+
+  <rdf:Description rdf:about="https://www.imdb.com/title/tt0371746/">
+    <fm:title>Iron Man</fm:title>
+    <fm:year>2008</fm:year>
+    <fm:rated>PG-13</fm:rated>
+    <fm:type rdf:resource="http://www.example.com/type#movie" />
+    <fm:director rdf:resource="http://www.example.com/person#Jon_Favreau" />
+    <fm:actor rdf:resource="http://www.example.com/person#Robert_Downey_Jr." />
+    <fm:actor rdf:resource="http://www.example.com/person#Gwyneth_Paltrow" />
+    <fm:genre>Action, Adventure, Sci-Fi</fm:genre>
+    <fm:rating>7.9</fm:rating>
+    <fm:poster>https://m.media-amazon.com/images/...</fm:poster>
+    <fm:plot>After being held captive in an Afghan cave...</fm:plot>
+  </rdf:Description>
+</rdf:RDF>
+```
+
+**Penjelasan:**
+- **RDF (Resource Description Framework)**: Format standar untuk data terstruktur
+- **XML Namespace**:
+  - `xmlns:rdf`: Namespace RDF standar W3C
+  - `xmlns:fm`: Namespace custom untuk film properties
+  - `xmlns:person`: Namespace custom untuk person/people
+
+- **Struktur RDF**:
+  - `<rdf:Description rdf:about="...">`: Resource description dengan URI
+  - `rdf:about`: URI unik untuk resource (film)
+  - Properties: `fm:title`, `fm:year`, `fm:rated`, dll
+  - `rdf:resource`: Reference ke resource lain (director, actor)
+
+- **Triple Pattern**:
+  - **Subject**: `https://www.imdb.com/title/tt0371746/` (film URI)
+  - **Predicate**: `fm:title`, `fm:year`, dll (property)
+  - **Object**: `"Iron Man"`, `"2008"`, dll (value)
+
+**Contoh Triple:**
+```
+Subject: https://www.imdb.com/title/tt0371746/
+Predicate: fm:title
+Object: "Iron Man"
+```
+
+**Mengapa RDF?**
+- ✅ Data terstruktur dan bisa di-query dengan SPARQL
+- ✅ Bisa di-link dengan data lain (Linked Data)
+- ✅ Standard format untuk Semantic Web
+- ✅ Bisa di-import ke Apache Fuseki
+
+---
+
+## 🔗 **11. INTEGRASI WEB SEMANTIK - Ringkasan**
+
+### **11.1. Teknologi Web Semantik yang Digunakan**
+
+| Teknologi | Lokasi | Tujuan |
+|-----------|--------|--------|
+| **RDF** | `film_marvel_dc.rdf` | Format data terstruktur |
+| **SPARQL** | Controller & Service | Query data RDF |
+| **Apache Fuseki** | Database | SPARQL endpoint |
+| **Open Graph Protocol** | Views (HTML head) | Social media preview |
+| **Schema.org RDFa** | Views (HTML body) | Structured data untuk search engine |
+| **DBpedia** | DBpediaService | External linked data |
+
+### **11.2. Flow Data Web Semantik**
+
+```
+1. RDF File (film_marvel_dc.rdf)
+   ↓ Import ke
+2. Apache Fuseki (RDF Database)
+   ↓ Query via
+3. SPARQL (FusekiService)
+   ↓ Process di
+4. Controller (FilmController)
+   ↓ Render dengan
+5. Views (Blade Templates)
+   ├─ Open Graph Protocol (OGP) meta tags
+   ├─ Schema.org RDFa markup
+   └─ Linked Data (Wikipedia, IMDb)
+   ↓ Output
+6. HTML dengan Semantic Markup
+   ↓ Readable by
+7. Search Engines & Social Media
+```
+
+### **11.3. Manfaat Implementasi Web Semantik**
+
+1. ✅ **SEO**: Search engine bisa baca structured data → Rich Snippets
+2. ✅ **Social Sharing**: Preview menarik saat share di social media
+3. ✅ **Data Integration**: Bisa link dengan DBpedia, Wikipedia, IMDb
+4. ✅ **Query Flexibility**: SPARQL memungkinkan query kompleks
+5. ✅ **Reusability**: Data RDF bisa digunakan oleh aplikasi lain
+6. ✅ **Standard Format**: Mengikuti standar W3C untuk Semantic Web
+
+---
+
+## 🔄 **12. DATA FLOW - Dari RDF ke HTML**
+
+### **12.1. Complete Data Flow**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 1. RDF FILE (film_marvel_dc.rdf)                            │
+│    Format: XML/RDF dengan triples                            │
+│    Example: <fm:title>Iron Man</fm:title>                   │
+└──────────────────────┬──────────────────────────────────────┘
+                       │ Import via Fuseki UI
+                       ↓
+┌─────────────────────────────────────────────────────────────┐
+│ 2. APACHE FUSEKI (RDF Database)                             │
+│    Dataset: tubeswsfilm                                      │
+│    Endpoint: http://localhost:3030/tubeswsfilm/query        │
+│    Storage: In-memory atau TDB                               │
+└──────────────────────┬──────────────────────────────────────┘
+                       │ SPARQL Query
+                       ↓
+┌─────────────────────────────────────────────────────────────┐
+│ 3. FUSEKISERVICE (PHP Service Layer)                        │
+│    Method: query($sparqlQuery)                               │
+│    Process:                                                  │
+│    - Auto-inject prefixes                                    │
+│    - Execute query via EasyRdf Client                        │
+│    - Convert EasyRdf objects → PHP arrays                   │
+│    - Clean URI names (person#John → "John")                 │
+└──────────────────────┬──────────────────────────────────────┘
+                       │ Return PHP Array
+                       ↓
+┌─────────────────────────────────────────────────────────────┐
+│ 4. FILMCONTROLLER (Business Logic)                          │
+│    Method: search() atau show()                              │
+│    Process:                                                  │
+│    - Build SPARQL query dengan filters                       │
+│    - Call FusekiService->query()                             │
+│    - Process results (clean names, format data)              │
+│    - Add DBpedia data (optional)                             │
+│    - Pass to view                                            │
+└──────────────────────┬──────────────────────────────────────┘
+                       │ Pass Data Array
+                       ↓
+┌─────────────────────────────────────────────────────────────┐
+│ 5. BLADE TEMPLATE (View Layer)                               │
+│    File: search.blade.php atau detail.blade.php              │
+│    Process:                                                  │
+│    - Render HTML dengan data dari controller                 │
+│    - Add RDFa attributes (property, typeof)                  │
+│    - Add OGP meta tags                                       │
+│    - Add Twitter Card meta tags                              │
+│    - Add Linked Data references                              │
+└──────────────────────┬──────────────────────────────────────┘
+                       │ Output HTML
+                       ↓
+┌─────────────────────────────────────────────────────────────┐
+│ 6. HTML OUTPUT (Semantic Markup)                            │
+│    Contains:                                                 │
+│    - RDFa attributes (property="name", typeof="Movie")      │
+│    - OGP meta tags (<meta property="og:title">)             │
+│    - Schema.org structured data                             │
+│    - Linked Data links (Wikipedia, IMDb)                    │
+└──────────────────────┬──────────────────────────────────────┘
+                       │ Read by
+                       ↓
+┌─────────────────────────────────────────────────────────────┐
+│ 7. SEARCH ENGINES & SOCIAL MEDIA                            │
+│    - Google: Extract structured data → Rich Snippets        │
+│    - Facebook: Read OGP → Preview card                       │
+│    - Twitter: Read Twitter Card → Tweet preview              │
+│    - Schema.org Validator: Validate RDFa markup            │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### **12.2. Example: From RDF Triple to RDFa**
+
+**RDF Triple (di Fuseki):**
+```
+Subject: https://www.imdb.com/title/tt0371746/
+Predicate: fm:title
+Object: "Iron Man"
+```
+
+**SPARQL Query:**
+```sparql
+SELECT ?title WHERE {
+    <https://www.imdb.com/title/tt0371746/> fm:title ?title .
+}
+```
+
+**PHP Array (dari FusekiService):**
+```php
+[
+    'title' => 'Iron Man'
+]
+```
+
+**Blade Template:**
+```blade
+<h1 property="name">{{ $film['title'] }}</h1>
+```
+
+**HTML Output:**
+```html
+<h1 property="name">Iron Man</h1>
+```
+
+**Structured Data Extracted (by Google):**
+```json
+{
+  "@type": "Movie",
+  "name": "Iron Man"
+}
+```
+
+---
+
+## 🛠️ **13. VALIDASI & TOOLS WEB SEMANTIK**
+
+### **13.1. Schema.org Validator**
+
+**URL**: https://validator.schema.org/
+
+**Cara Pakai:**
+1. Masukkan URL halaman detail film (contoh: `http://localhost/film/tt0371746`)
+2. Klik "Run Test"
+3. Validator akan:
+   - Extract semua RDFa markup
+   - Validasi sesuai Schema.org vocabulary
+   - Tampilkan structured data yang terdeteksi
+   - Tampilkan error jika ada
+
+**Output yang Diharapkan:**
+```json
+{
+  "@context": "https://schema.org",
+  "@type": "Movie",
+  "name": "Iron Man",
+  "image": "https://...",
+  "aggregateRating": {
+    "@type": "AggregateRating",
+    "ratingValue": "7.9",
+    "bestRating": "10"
+  }
+}
+```
+
+---
+
+### **13.2. Open Graph Debugger**
+
+**Facebook Sharing Debugger**: https://developers.facebook.com/tools/debug/
+**LinkedIn Post Inspector**: https://www.linkedin.com/post-inspector/
+
+**Cara Pakai:**
+1. Masukkan URL halaman
+2. Klik "Debug" atau "Inspect"
+3. Tool akan:
+   - Fetch halaman dan extract OGP meta tags
+   - Tampilkan preview seperti di social media
+   - Tampilkan semua OGP properties yang terdeteksi
+   - Cache clearing jika perlu
+
+**OGP Properties yang Harus Ada:**
+- ✅ `og:title`
+- ✅ `og:type`
+- ✅ `og:url`
+- ✅ `og:image`
+- ✅ `og:description`
+
+---
+
+### **13.3. Twitter Card Validator**
+
+**URL**: https://cards-dev.twitter.com/validator
+
+**Cara Pakai:**
+1. Masukkan URL halaman
+2. Klik "Preview card"
+3. Tool akan:
+   - Extract Twitter Card meta tags
+   - Tampilkan preview seperti di Twitter
+   - Tampilkan semua properties
+
+**Twitter Card Properties:**
+- ✅ `twitter:card` (summary_large_image)
+- ✅ `twitter:title`
+- ✅ `twitter:description`
+- ✅ `twitter:image`
+
+---
+
+### **13.4. SPARQL Query Testing**
+
+**Fuseki Query UI**: `http://localhost:3030/tubeswsfilm/query`
+
+**Cara Pakai:**
+1. Buka browser → `http://localhost:3030/tubeswsfilm/query`
+2. Masukkan SPARQL query
+3. Klik "Run Query"
+4. Lihat hasil dalam format JSON, XML, atau HTML
+
+**Contoh Query untuk Testing:**
+```sparql
+PREFIX fm: <http://www.example.com/film#>
+
+SELECT ?film ?title ?rating
+WHERE {
+    ?film fm:title ?title .
+    ?film fm:imdbRating ?rating .
+    FILTER(?rating > "8.0")
+}
+ORDER BY DESC(?rating)
+LIMIT 10
+```
+
+---
+
+### **13.5. RDF Validator**
+
+**W3C RDF Validator**: https://www.w3.org/RDF/Validator/
+
+**Cara Pakai:**
+1. Upload file RDF atau paste RDF content
+2. Klik "Parse RDF"
+3. Validator akan:
+   - Check syntax RDF/XML
+   - Tampilkan triples yang terdeteksi
+   - Tampilkan error jika ada
+
+**Output:**
+- List semua triples (Subject-Predicate-Object)
+- Visual graph representation
+- Error messages jika ada syntax error
+
+---
+
+## 📚 **14. KESIMPULAN LENGKAP**
+
+Proyek ini mengimplementasikan **Web Semantik** secara lengkap:
+
+### **Backend (Semantic Data)**
+- ✅ RDF format untuk data terstruktur
+- ✅ Apache Fuseki sebagai SPARQL endpoint
+- ✅ SPARQL queries untuk query data
+- ✅ Integrasi dengan DBpedia (Linked Data)
+
+### **Frontend (Semantic Markup)**
+- ✅ Open Graph Protocol untuk social media
+- ✅ Schema.org RDFa untuk structured data
+- ✅ Linked Data references (Wikipedia, IMDb)
+
+### **Arsitektur**
+- ✅ Service layer separation (FusekiService, DBpediaService)
+- ✅ Controller untuk business logic
+- ✅ Views dengan semantic markup
+
+**Hasil:**
+- ✅ Data terstruktur dan bisa di-query
+- ✅ SEO-friendly dengan structured data
+- ✅ Social media preview yang menarik
+- ✅ Integrasi dengan external semantic data (DBpedia)
+
+---
+
+## 📋 **15. RINGKASAN BAGIAN YANG DIJELASKAN**
+
+### **Backend (Controller & Service)**
+1. ✅ **FilmController** - Penjelasan lengkap semua method
+   - Constructor (Dependency Injection)
+   - Helper method `cleanNameFromUri()`
+   - Method `search()` - Pencarian dengan filter, pagination, sorting
+   - Method `show()` - Halaman detail film
+   - 10+ SPARQL queries yang digunakan
+
+2. ✅ **FusekiService** - Service untuk query lokal
+   - Constructor & Setup (Namespace, Prefixes)
+   - Method `query()` - Execute SPARQL query
+   - Method `queryValue()` - Get single value
+   - Helper `cleanName()` - Clean URI names
+
+3. ✅ **DBpediaService** - Service untuk query external
+   - Method `query()` - HTTP request via CURL
+   - Method `getFilmInfo()` - Get budget dari DBpedia
+   - Method `formatCurrency()` - Format budget
+
+### **Frontend (Views & Routes)**
+4. ✅ **Routes (web.php)** - Routing configuration
+   - Route untuk search page
+   - Route untuk detail page
+   - Named routes dan parameter
+
+5. ✅ **Views (Blade Templates)** - Web Semantik Implementation
+   - **Open Graph Protocol (OGP)**: Meta tags untuk social media
+   - **Schema.org RDFa**: Structured data markup
+   - **Twitter Card**: Meta tags untuk Twitter preview
+   - **Linked Data**: Wikipedia & IMDb references
+   - **RDFa Vocabulary**: Declaration dan nested properties
+   - **ItemList Pattern**: Structured data untuk list
+
+### **Web Semantik**
+6. ✅ **RDF Data File** - Struktur data RDF/XML
+   - Namespace declaration
+   - Triple pattern (Subject-Predicate-Object)
+   - Resource description
+
+7. ✅ **Konfigurasi** - Environment variables
+   - FUSEKI_ENDPOINT configuration
+   - Database configuration
+
+8. ✅ **Data Flow** - Dari RDF ke HTML
+   - Complete flow diagram
+   - Example: RDF Triple → RDFa
+
+9. ✅ **Validasi & Tools** - Tools untuk testing
+   - Schema.org Validator
+   - Open Graph Debugger
+   - Twitter Card Validator
+   - SPARQL Query Testing
+   - RDF Validator
+
+### **Total Penjelasan:**
+- **3 Controllers/Services**: FilmController, FusekiService, DBpediaService
+- **2 Views**: search.blade.php, detail.blade.php
+- **1 Route File**: web.php
+- **10+ SPARQL Queries**: Semua query dijelaskan detail
+- **5+ Web Semantik Technologies**: RDF, SPARQL, OGP, RDFa, Linked Data
+- **5+ Validation Tools**: Tools untuk testing dan validasi
+
+**Total Lines**: ~1800+ lines penjelasan lengkap
+
+---
+
+## 🎯 **16. TIPS UNTUK PRESENTASI**
+
+### **Poin Penting yang Harus Ditekankan:**
+1. **Web Semantik Implementation** - Ini adalah inti dari proyek
+   - RDF untuk data storage
+   - SPARQL untuk query
+   - RDFa untuk structured data di HTML
+   - OGP untuk social media
+
+2. **Two-Stage Query Pattern** - Optimasi performance
+   - Jelaskan mengapa lebih cepat (60x speedup)
+   - Bandingkan dengan approach tanpa optimasi
+
+3. **Linked Data Integration** - DBpedia
+   - Menunjukkan kemampuan integrasi external data
+   - Format currency handling
+
+4. **Security** - SPARQL Injection Prevention
+   - Penting untuk production-ready application
+
+5. **SEO & Social Media** - RDFa dan OGP
+   - Manfaat untuk SEO
+   - Rich Snippets di Google
+   - Preview menarik di social media
+
+### **Demo Flow yang Disarankan:**
+1. Tampilkan halaman search dengan filter
+2. Tunjukkan pencarian dengan fuzzy search
+3. Tampilkan halaman detail dengan data lengkap
+4. Buka browser DevTools → Elements → Tunjukkan RDFa attributes
+5. Buka Schema.org Validator → Validasi halaman detail
+6. Share link di Facebook/Twitter → Tunjukkan preview
+
+### **Q&A Preparation:**
+- **Kenapa pakai RDF/SPARQL?** - Untuk semantic web, data terstruktur, query fleksibel
+- **Kenapa pakai DBpedia?** - Data tambahan yang tidak ada di database lokal, Linked Data
+- **Bagaimana handle error?** - Try-catch, logging, default values
+- **Bagaimana scalability?** - Service layer, caching bisa ditambahkan
+- **Kenapa pakai RDFa bukan JSON-LD?** - RDFa embedded di HTML, lebih mudah maintain
+- **Bagaimana validasi?** - Schema.org Validator, OGP Debugger
+
+---
+
+**Dokumen ini siap untuk presentasi!** 📝✨
 

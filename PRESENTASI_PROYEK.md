@@ -975,9 +975,9 @@ private function formatCurrency($value)
 
 ---
 
-## 🛣️ **7. ROUTES (web.php) - Penjelasan Lengkap**
+## 🛣️ **6. ROUTES (web.php) - Penjelasan Lengkap**
 
-### **7.1. Struktur Routes**
+### **6.1. Struktur Routes**
 
 ```php
 Route::get('/', [FilmController::class, 'search'])->name('film.search');
@@ -1007,9 +1007,9 @@ Route::get('/film/{imdb_id}', [FilmController::class, 'show'])->name('film.show'
 
 ---
 
-## 🎨 **8. VIEWS - Web Semantik Implementation**
+## 🎨 **7. VIEWS - Web Semantik Implementation**
 
-### **8.1. Open Graph Protocol (OGP) - search.blade.php**
+### **7.1. Open Graph Protocol (OGP) - search.blade.php**
 
 ```html
 <html lang="id" prefix="og: http://ogp.me/ns# schema: http://schema.org/" vocab="http://schema.org/">
@@ -1043,7 +1043,7 @@ Route::get('/film/{imdb_id}', [FilmController::class, 'show'])->name('film.show'
 
 ---
 
-### **8.2. Open Graph Protocol (OGP) - detail.blade.php**
+### **7.2. Open Graph Protocol (OGP) - detail.blade.php**
 
 ```html
 <html lang="id" prefix="og: http://ogp.me/ns# video: http://ogp.me/ns/video# schema: http://schema.org/" vocab="http://schema.org/" typeof="Movie">
@@ -1083,7 +1083,7 @@ Route::get('/film/{imdb_id}', [FilmController::class, 'show'])->name('film.show'
 
 ---
 
-### **8.3. Schema.org RDFa - Structured Data Markup**
+### **7.3. Schema.org RDFa - Structured Data Markup**
 
 #### **A. RDFa di search.blade.php**
 
@@ -1198,7 +1198,7 @@ Route::get('/film/{imdb_id}', [FilmController::class, 'show'])->name('film.show'
 
 ---
 
-### **8.4. Twitter Card Meta Tags**
+### **7.4. Twitter Card Meta Tags**
 
 ```html
 {{-- Twitter Card Meta Tags --}}
@@ -1223,7 +1223,7 @@ Route::get('/film/{imdb_id}', [FilmController::class, 'show'])->name('film.show'
 
 ---
 
-### **8.5. Wikipedia & IMDb Links (Linked Data)**
+### **7.5. Wikipedia & IMDb Links (Linked Data)**
 
 ```html
 {{-- Wikipedia Reference Link --}}
@@ -1254,7 +1254,7 @@ Route::get('/film/{imdb_id}', [FilmController::class, 'show'])->name('film.show'
 
 ---
 
-### **8.6. RDFa Vocabulary Declaration**
+### **7.6. RDFa Vocabulary Declaration**
 
 ```html
 <html lang="id" 
@@ -1306,7 +1306,7 @@ Route::get('/film/{imdb_id}', [FilmController::class, 'show'])->name('film.show'
 
 ---
 
-### **8.7. RDFa Nested Properties**
+### **7.7. RDFa Nested Properties**
 
 ```html
 <span property="director" typeof="Person">
@@ -1345,7 +1345,7 @@ Route::get('/film/{imdb_id}', [FilmController::class, 'show'])->name('film.show'
 
 ---
 
-### **8.8. RDFa ItemList Pattern**
+### **7.8. RDFa ItemList Pattern**
 
 ```html
 <div typeof="ItemList">
@@ -1393,9 +1393,9 @@ Route::get('/film/{imdb_id}', [FilmController::class, 'show'])->name('film.show'
 
 ---
 
-## ⚙️ **9. KONFIGURASI - Environment Variables**
+## ⚙️ **8. KONFIGURASI - Environment Variables**
 
-### **9.1. FUSEKI_ENDPOINT Configuration**
+### **8.1. FUSEKI_ENDPOINT Configuration**
 
 ```env
 FUSEKI_ENDPOINT=http://localhost:3030/tubeswsfilm/query
@@ -1421,7 +1421,7 @@ FUSEKI_ENDPOINT=http://localhost:3030/tubeswsfilm/query
 
 ---
 
-### **9.2. Database Configuration**
+### **8.2. Database Configuration**
 
 ```env
 DB_CONNECTION=sqlite
@@ -1440,7 +1440,7 @@ DB_DATABASE=database/database.sqlite
 
 ---
 
-## 📄 **10. RDF DATA FILE - Struktur Data**
+## 📄 **9. RDF DATA FILE - Struktur Data**
 
 ### **9.1. File RDF: film_marvel_dc.rdf**
 
@@ -1499,9 +1499,9 @@ Object: "Iron Man"
 
 ---
 
-## 🔗 **11. INTEGRASI WEB SEMANTIK - Ringkasan**
+## 🔗 **10. INTEGRASI WEB SEMANTIK - Ringkasan**
 
-### **11.1. Teknologi Web Semantik yang Digunakan**
+### **10.1. Teknologi Web Semantik yang Digunakan**
 
 | Teknologi | Lokasi | Tujuan |
 |-----------|--------|--------|
@@ -1512,7 +1512,7 @@ Object: "Iron Man"
 | **Schema.org RDFa** | Views (HTML body) | Structured data untuk search engine |
 | **DBpedia** | DBpediaService | External linked data |
 
-### **11.2. Flow Data Web Semantik**
+### **10.2. Flow Data Web Semantik**
 
 ```
 1. RDF File (film_marvel_dc.rdf)
@@ -1533,7 +1533,7 @@ Object: "Iron Man"
 7. Search Engines & Social Media
 ```
 
-### **11.3. Manfaat Implementasi Web Semantik**
+### **10.3. Manfaat Implementasi Web Semantik**
 
 1. ✅ **SEO**: Search engine bisa baca structured data → Rich Snippets
 2. ✅ **Social Sharing**: Preview menarik saat share di social media
@@ -1544,9 +1544,9 @@ Object: "Iron Man"
 
 ---
 
-## 🔄 **12. DATA FLOW - Dari RDF ke HTML**
+## 🔄 **11. DATA FLOW - Dari RDF ke HTML**
 
-### **12.1. Complete Data Flow**
+### **11.1. Complete Data Flow**
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -1618,7 +1618,7 @@ Object: "Iron Man"
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### **12.2. Example: From RDF Triple to RDFa**
+### **11.2. Example: From RDF Triple to RDFa**
 
 **RDF Triple (di Fuseki):**
 ```
@@ -1661,9 +1661,9 @@ SELECT ?title WHERE {
 
 ---
 
-## 🛠️ **13. VALIDASI & TOOLS WEB SEMANTIK**
+## 🛠️ **12. VALIDASI & TOOLS WEB SEMANTIK**
 
-### **13.1. Schema.org Validator**
+### **12.1. Schema.org Validator**
 
 **URL**: https://validator.schema.org/
 
@@ -1693,7 +1693,7 @@ SELECT ?title WHERE {
 
 ---
 
-### **13.2. Open Graph Debugger**
+### **12.2. Open Graph Debugger**
 
 **Facebook Sharing Debugger**: https://developers.facebook.com/tools/debug/
 **LinkedIn Post Inspector**: https://www.linkedin.com/post-inspector/
@@ -1716,7 +1716,7 @@ SELECT ?title WHERE {
 
 ---
 
-### **13.3. Twitter Card Validator**
+### **12.3. Twitter Card Validator**
 
 **URL**: https://cards-dev.twitter.com/validator
 
@@ -1736,7 +1736,7 @@ SELECT ?title WHERE {
 
 ---
 
-### **13.4. SPARQL Query Testing**
+### **12.4. SPARQL Query Testing**
 
 **Fuseki Query UI**: `http://localhost:3030/tubeswsfilm/query`
 
@@ -1762,7 +1762,7 @@ LIMIT 10
 
 ---
 
-### **13.5. RDF Validator**
+### **12.5. RDF Validator**
 
 **W3C RDF Validator**: https://www.w3.org/RDF/Validator/
 
@@ -1781,7 +1781,7 @@ LIMIT 10
 
 ---
 
-## 📚 **14. KESIMPULAN**
+## 📚 **13. KESIMPULAN**
 
 ### **Implementasi Web Semantik Lengkap**
 

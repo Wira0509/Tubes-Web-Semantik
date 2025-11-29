@@ -45,7 +45,9 @@
     <meta property="og:see_also" content="https://www.imdb.com/title/{{ $imdbId }}/">
     <link rel="alternate" type="text/html" href="https://en.wikipedia.org/wiki/{{ $wikipediaTitle }}" title="Wikipedia Article">
     
+    {{-- Scripts --}}
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="//unpkg.com/alpinejs" defer></script>
     <script>
         tailwind.config = {
             theme: {
@@ -63,25 +65,70 @@
 </head>
 <body class="bg-imdb-dark text-white font-sans">
 
-    <!-- Navbar Sederhana -->
-    <nav class="bg-imdb-gray border-b border-imdb-light-gray p-4 sticky top-0 z-50">
-        <div class="container mx-auto max-w-6xl flex items-center justify-between">
-            <a href="{{ route('film.search', request()->only(['query', 'letter', 'type', 'year', 'rated', 'genre', 'sort', 'page'])) }}" class="text-2xl font-bold text-imdb-yellow">
+    <header class="sticky top-0 z-30 bg-imdb-gray border-b border-imdb-light-gray">
+        <div class="container mx-auto max-w-7xl px-4 md:px-8 py-3 flex items-center gap-4">
+            
+            {{-- Logo --}}
+            <a href="{{ route('film.search') }}" class="text-3xl font-bold text-imdb-yellow hidden md:block">
                 TetengFilm
             </a>
-            <a href="{{ route('film.search', request()->only(['query', 'letter', 'type', 'year', 'rated', 'genre', 'sort', 'page'])) }}" class="text-sm text-gray-300 hover:text-white transition-colors">
-                &larr; Kembali ke Pencarian
-            </a>
-        </div>
-    </nav>
 
-    <!-- Konten Utama -->
-    <main class="container mx-auto max-w-6xl p-4 md:p-8">
+            {{-- Tombol Kembali (Menggantikan Tombol Filter) --}}
+            <a href="{{ route('film.search', request()->only(['query', 'letter', 'type', 'year', 'rated', 'genre', 'sort', 'page'])) }}" 
+               class="p-2 text-white hover:text-imdb-yellow transition-colors"
+               title="Kembali ke Hasil Pencarian">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                <span class="sr-only">Kembali</span>
+            </a>
+
+            {{-- Search Bar --}}
+            <form action="{{ route('film.search') }}" method="GET" class="w-full md:w-[32rem] ml-auto"
+                  x-data="{ isSubmitting: false }"
+                  @submit="isSubmitting = true; sessionStorage.setItem('scrollToResults', 'true')">
+                
+                {{-- Mempertahankan Filter Saat Melakukan Pencarian Baru --}}
+                @foreach(request()->except(['query', 'letter', 'page']) as $key => $value)
+                    @if(is_array($value))
+                        @foreach($value as $v)
+                            <input type="hidden" name="{{ $key }}[]" value="{{ $v }}">
+                        @endforeach
+                    @else
+                        <input type="hidden" name="{{ $key }}" value="{{ $value }}">
+                    @endif
+                @endforeach
+
+                <div class="relative w-full text-gray-600 focus-within:text-gray-400">
+                    
+                    <input type="text" 
+                           name="query" 
+                           placeholder="Cari film lain..."
+                           value="{{ $searchQuery ?? request('query') ?? '' }}"
+                           class="w-full py-3 pl-4 pr-12 bg-white border-none rounded-md text-lg text-black focus:outline-none focus:ring-2 focus:ring-imdb-yellow placeholder-gray-500">
+                    
+                    <button type="submit" 
+                            class="absolute right-2 top-1/2 transform -translate-y-1/2 p-2 bg-transparent hover:text-imdb-yellow transition-colors disabled:cursor-not-allowed"
+                            :disabled="isSubmitting">
+                
+                        <svg x-show="!isSubmitting" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10.5 3.75a6.75 6.75 0 100 13.5 6.75 6.75 0 000-13.5zM2.25 10.5a8.25 8.25 0 1114.59 5.28l4.69 4.69a.75.75 0 11-1.06 1.06l-4.69-4.69A8.25 8.25 0 012.25 10.5z" clip-rule="evenodd" />
+                        </svg>
+
+                        <svg x-show="isSubmitting" style="display: none;" class="animate-spin h-6 w-6 text-imdb-yellow" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </header>
+
+    <main class="container mx-auto max-w-7xl p-4 md:p-8">
         
-        <!-- Header Film -->
         <div class="flex flex-col md:flex-row gap-8">
             
-            <!-- Poster -->
             <div class="flex-shrink-0 w-full md:w-1/3 lg:w-1/4">
                 <img src="{{ $film['poster'] }}" alt="{{ $film['title'] }} Poster" property="image" class="w-full rounded-lg shadow-2xl border-4 border-imdb-gray">
                 
@@ -129,7 +176,6 @@
                 </div>
             </div>
 
-            <!-- Detail Info -->
             <div class="flex-grow">
                 <h1 class="text-4xl md:text-5xl font-bold text-white mb-2" property="name">{{ $film['title'] }}</h1>
                 
@@ -140,7 +186,6 @@
                     <span property="duration">{{ $film['runtime'] ?? 'N/A' }}</span>
                 </div>
 
-                <!-- Genre Tags -->
                 @if(isset($film['genres']) && $film['genres'])
                 <div class="flex flex-wrap gap-2 mb-6">
                     @foreach(explode(', ', $film['genres']) as $genre)
@@ -151,7 +196,6 @@
                 </div>
                 @endif
 
-                <!-- Plot -->
                 <div class="mb-8">
                     <h3 class="text-lg font-bold text-imdb-yellow mb-2 border-l-4 border-imdb-yellow pl-3">Sinopsis</h3>
                     <p class="text-lg text-gray-300 leading-relaxed" property="description">
@@ -160,7 +204,6 @@
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <!-- Cast & Crew -->
                     <div>
                         <div class="mb-4">
                             <span class="text-gray-400 block text-sm mb-1">Sutradara</span>
@@ -212,7 +255,6 @@
                         </div>
                     </div>
 
-                    <!-- Info Tambahan -->
                     <div class="bg-imdb-gray p-6 rounded-lg border border-gray-800">
                         <h4 class="text-white font-bold mb-4 flex items-center gap-2">
                             <svg class="w-5 h-5 text-imdb-yellow" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -313,6 +355,8 @@
             </p>
         </div>
     </footer>
+
+    @include('partials.chatbot')
 
 </body>
 </html>

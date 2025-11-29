@@ -486,4 +486,84 @@ class FilmController extends Controller
             'searchQuery' => $searchQuery
         ]);
     }
+
+    public function recommendChat(Request $request)
+    {
+        $inputMood = $request->input('message'); 
+
+        $moodMap = [
+            'sedih'    => [
+                'genres' => ['Comedy', 'Animation', 'Musical', 'Family'],
+                'msg'    => "Jangan sedih dong! Nih, aku pilihkan film lucu buat naikin mood kamu:"
+            ],
+            'senang'   => [
+                'genres' => ['Action', 'Adventure', 'Sci-Fi'],
+                'msg'    => "Lagi happy ya! Coba tonton film seru ini biar makin semangat:"
+            ],
+            'bosan'    => [
+                'genres' => ['Thriller', 'Mystery', 'Horror', 'Crime'],
+                'msg'    => "Bosan? Film-film ini dijamin bikin penasaran dan deg-degan:"
+            ],
+            'takut'    => [
+                'genres' => ['Romance', 'Comedy'],
+                'msg'    => "Tenang, tonton yang santai dan manis aja biar rileks:"
+            ],
+            'romantis' => [
+                'genres' => ['Romance', 'Drama'],
+                'msg'    => "Cieee.. Ini film romantis pilihan buat momen manis kamu:"
+            ],
+            'acak'     => [
+                'genres' => ['Action', 'Comedy', 'Drama', 'Horror', 'Sci-Fi'],
+                'msg'    => "Oke, ini film acak spesial buat kamu yang suka kejutan:"
+            ],
+        ];
+
+        if (!isset($moodMap[$inputMood])) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Waduh, aku bingung. Coba pilih tombol mood yang ada ya!',
+                'films' => []
+            ]);
+        }
+
+        $selected = $moodMap[$inputMood];
+
+        $filters = array_map(fn($g) => "CONTAINS(LCASE(?genre), LCASE('$g'))", $selected['genres']);
+        $filterString = implode(' || ', $filters);
+
+        $sparqlQuery = "
+            SELECT DISTINCT ?film ?title ?poster ?rating
+            WHERE {
+                ?film fm:title ?title ; 
+                    fm:genre ?genre ; 
+                    fm:poster ?poster .
+                OPTIONAL { ?film fm:imdbRating ?ratingB }
+                BIND(COALESCE(?ratingB, '0.0') AS ?rating)
+                
+                FILTER ($filterString)
+            }
+            LIMIT 50
+        ";
+
+        $results = $this->fuseki->query($sparqlQuery);
+
+        if (!empty($results)) {
+            shuffle($results);
+            $finalFilms = array_slice($results, 0, 3);
+            
+            $finalFilms = array_map(function($film) {
+                $film['imdb_id'] = last(explode('/', rtrim($film['film'], '/')));
+                return $film;
+            }, $finalFilms);
+        } else {
+            $finalFilms = [];
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'message' => $selected['msg'],
+            'films' => $finalFilms
+        ]);
+    }
+
 }

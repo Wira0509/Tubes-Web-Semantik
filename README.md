@@ -226,7 +226,41 @@ LIMIT 10
 
 ---
 
-### 4. **Statistics Queries - Filter Dropdown**
+### 4. **Featured Films - Film Unggulan untuk Carousel**
+
+```sparql
+SELECT DISTINCT ?film 
+WHERE {
+    ?film fm:title ?title .
+    ?film fm:plot ?plot .
+    ?film fm:poster ?poster .
+    
+    FILTER(BOUND(?plot) && BOUND(?poster) && STRLEN(?plot) > 10)
+}
+```
+
+**Fungsi**: Mengambil film yang memiliki plot dan poster lengkap untuk carousel featured films di homepage.
+
+**Kemudian dilanjutkan dengan query detail**:
+
+```sparql
+SELECT ?film ?title ?poster ?plot
+WHERE {
+    VALUES ?film { <film_uri_1> <film_uri_2> <film_uri_3> ... }
+    ?film fm:title ?title .
+    ?film fm:poster ?poster .
+    ?film fm:plot ?plot .
+}
+```
+
+**Proses**:
+1. Query pertama mengambil semua film yang qualified (punya poster & plot)
+2. URI hasil di-shuffle random di PHP
+3. Query kedua mengambil detail 7 film terpilih untuk carousel
+
+---
+
+### 5. **Statistics Queries - Filter Dropdown**
 
 #### Years Available
 ```sparql
@@ -268,7 +302,7 @@ ORDER BY ?genre
 
 ---
 
-### 5. **DBpedia Integration - Budget Information**
+### 6. **DBpedia Integration - Budget Information**
 
 Query ke endpoint eksternal untuk data tambahan.
 

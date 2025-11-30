@@ -98,7 +98,6 @@
             isOpen: false,
             messages: [],
             isLoading: false,
-            // Daftar Pilihan Mood
             moodOptions: [
                 { label: 'Senang', value: 'senang', icon: '😄' },
                 { label: 'Sedih', value: 'sedih', icon: '😢' },
@@ -117,15 +116,11 @@
             },
 
             sendMood(mood) {
-                // 1. Tampilkan pesan user seolah-olah dia mengetik
                 const userText = "Aku lagi " + mood.label.toLowerCase();
                 this.messages.push({ sender: 'user', text: userText });
                 
-                // 2. Mulai Loading
                 this.isLoading = true;
 
-                // 3. Kirim ke Backend
-                // Kita mengirim 'value' (misal: 'sedih') agar cocok dengan logika controller
                 fetch('{{ route("chatbot.recommend") }}', {
                     method: 'POST',
                     headers: {
@@ -136,7 +131,6 @@
                 })
                 .then(response => response.json())
                 .then(data => {
-                    // Delay buatan 2 detik (2000ms) agar terlihat mikir
                     setTimeout(() => {
                         this.isLoading = false;
                         this.messages.push({ 

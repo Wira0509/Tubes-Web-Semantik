@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ $film['title'] }} - TetengFilm</title>
     
-    {{-- Open Graph Protocol Meta Tags --}}
     <meta property="og:title" content="{{ $film['title'] }} ({{ $film['year'] }})">
     <meta property="og:type" content="video.movie">
     <meta property="og:url" content="{{ url()->current() }}">
@@ -30,13 +29,11 @@
         @endforeach
     @endif
     
-    {{-- Twitter Card Meta Tags --}}
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="{{ $film['title'] }} ({{ $film['year'] }})">
     <meta name="twitter:description" content="{{ Str::limit($film['plot'], 200) }}">
     <meta name="twitter:image" content="{{ $film['poster'] }}">
     
-    {{-- Wikipedia Reference Link --}}
     @php
         $wikipediaTitle = str_replace(' ', '_', $film['title']);
         $imdbId = last(explode('/', rtrim($film['film'], '/')));
@@ -45,7 +42,6 @@
     <meta property="og:see_also" content="https://www.imdb.com/title/{{ $imdbId }}/">
     <link rel="alternate" type="text/html" href="https://en.wikipedia.org/wiki/{{ $wikipediaTitle }}" title="Wikipedia Article">
     
-    {{-- Scripts --}}
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="//unpkg.com/alpinejs" defer></script>
     <script>
@@ -68,12 +64,10 @@
     <header class="sticky top-0 z-30 bg-imdb-gray border-b border-imdb-light-gray">
         <div class="container mx-auto max-w-7xl px-4 md:px-8 py-3 flex items-center gap-4">
             
-            {{-- Logo --}}
             <a href="{{ route('film.search') }}" class="text-3xl font-bold text-imdb-yellow hidden md:block">
                 TetengFilm
             </a>
 
-            {{-- Tombol Kembali (Menggantikan Tombol Filter) --}}
             <a href="{{ route('film.search', request()->only(['query', 'letter', 'type', 'year', 'rated', 'genre', 'sort', 'page'])) }}" 
                class="p-2 text-white hover:text-imdb-yellow transition-colors"
                title="Kembali ke Hasil Pencarian">
@@ -83,12 +77,10 @@
                 <span class="sr-only">Kembali</span>
             </a>
 
-            {{-- Search Bar --}}
             <form action="{{ route('film.search') }}" method="GET" class="w-full md:w-[32rem] ml-auto"
                   x-data="{ isSubmitting: false }"
                   @submit="isSubmitting = true; sessionStorage.setItem('scrollToResults', 'true')">
                 
-                {{-- Mempertahankan Filter Saat Melakukan Pencarian Baru --}}
                 @foreach(request()->except(['query', 'letter', 'page']) as $key => $value)
                     @if(is_array($value))
                         @foreach($value as $v)
@@ -99,7 +91,7 @@
                     @endif
                 @endforeach
 
-                <div class="relative w-full text-gray-600 focus-within:text-gray-400">
+                <div class="relative w-full text-gray-800 focus-within:text-gray-600">
                     
                     <input type="text" 
                            name="query" 
@@ -134,13 +126,13 @@
                 
                 @if($film['rating'] !== 'N/A' && $film['rating'] != 0)
                 <div class="mt-6 p-4 bg-imdb-gray rounded-lg text-center" property="aggregateRating" typeof="AggregateRating">
-                    <div class="text-sm text-gray-400 uppercase tracking-wide">IMDb Rating</div>
+                    <div class="text-sm text-gray-300 uppercase tracking-wide">IMDb Rating</div>
                     <div class="flex items-center justify-center gap-2 mt-1">
                         <svg class="w-8 h-8 text-imdb-yellow" fill="currentColor" viewBox="0 0 20 20">
                             <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
                         </svg>
                         <span class="text-3xl font-bold text-white" property="ratingValue">{{ $film['rating'] }}</span>
-                        <span class="text-gray-500">/<span property="bestRating">10</span></span>
+                        <span class="text-gray-400">/<span property="bestRating">10</span></span>
                     </div>
                     @if($film['imdbVotes'] !== 'N/A')
                     <div class="text-xs text-gray-400 mt-2">
@@ -152,14 +144,13 @@
                 
                 @if($film['metascore'] !== 'N/A' && $film['metascore'] != 0)
                 <div class="mt-4 p-4 bg-imdb-gray rounded-lg text-center">
-                    <div class="text-sm text-gray-400 uppercase tracking-wide">Metascore</div>
+                    <div class="text-sm text-gray-300 uppercase tracking-wide">Metascore</div>
                     <div class="flex items-center justify-center gap-2 mt-1">
-                        <span class="text-3xl font-bold text-green-500">{{ $film['metascore'] }}</span>
+                        <span class="text-3xl font-bold text-green-400">{{ $film['metascore'] }}</span>
                     </div>
                 </div>
                 @endif
                 
-                {{-- External Links --}}
                 @php
                     $wikipediaTitle = str_replace(' ', '_', $film['title']);
                 @endphp
@@ -179,8 +170,8 @@
             <div class="flex-grow">
                 <h1 class="text-4xl md:text-5xl font-bold text-white mb-2" property="name">{{ $film['title'] }}</h1>
                 
-                <div class="flex flex-wrap items-center gap-4 text-sm text-gray-400 mb-6">
-                    <span class="border border-gray-600 px-2 py-0.5 rounded" property="contentRating">{{ $film['rated'] }}</span>
+                <div class="flex flex-wrap items-center gap-4 text-sm text-gray-300 mb-6">
+                    <span class="border border-gray-500 px-2 py-0.5 rounded" property="contentRating">{{ $film['rated'] }}</span>
                     <span property="datePublished">{{ $film['year'] }}</span>
                     <span class="capitalize">{{ ucfirst($film['type']) }}</span>
                     <span property="duration">{{ $film['runtime'] ?? 'N/A' }}</span>
@@ -189,7 +180,7 @@
                 @if(isset($film['genres']) && $film['genres'])
                 <div class="flex flex-wrap gap-2 mb-6">
                     @foreach(explode(', ', $film['genres']) as $genre)
-                        <span class="px-3 py-1 bg-imdb-gray hover:bg-imdb-light-gray rounded-full text-sm text-white border border-gray-700 transition-colors cursor-default" property="genre">
+                        <span class="px-3 py-1 bg-imdb-gray hover:bg-imdb-light-gray rounded-full text-sm text-white border border-gray-600 transition-colors cursor-default" property="genre">
                             {{ $genre }}
                         </span>
                     @endforeach
@@ -198,7 +189,7 @@
 
                 <div class="mb-8">
                     <h3 class="text-lg font-bold text-imdb-yellow mb-2 border-l-4 border-imdb-yellow pl-3">Sinopsis</h3>
-                    <p class="text-lg text-gray-300 leading-relaxed" property="description">
+                    <p class="text-lg text-gray-200 leading-relaxed" property="description">
                         {{ $film['plot'] }}
                     </p>
                 </div>
@@ -206,7 +197,7 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div>
                         <div class="mb-4">
-                            <span class="text-gray-400 block text-sm mb-1">Sutradara</span>
+                            <span class="text-gray-300 block text-sm mb-1">Sutradara</span>
                             <div class="text-white font-medium text-lg">
                                 @if(!empty($film['directors_list']))
                                     @foreach($film['directors_list'] as $director)
@@ -221,7 +212,7 @@
                         </div>
                         
                         <div class="mb-4">
-                            <span class="text-gray-400 block text-sm mb-1">Penulis</span>
+                            <span class="text-gray-300 block text-sm mb-1">Penulis</span>
                             <div class="text-white font-medium">
                                 @if(!empty($film['writers_list']))
                                     @foreach($film['writers_list'] as $writer)
@@ -236,7 +227,7 @@
                         </div>
 
                         <div class="mb-4">
-                            <span class="text-gray-400 block text-sm mb-1">Pemeran Utama</span>
+                            <span class="text-gray-300 block text-sm mb-1">Pemeran Utama</span>
                             <div class="text-white font-medium">
                                 @if(!empty($film['actors_list']))
                                     <ul class="list-disc list-inside space-y-1">
@@ -255,7 +246,7 @@
                         </div>
                     </div>
 
-                    <div class="bg-imdb-gray p-6 rounded-lg border border-gray-800">
+                    <div class="bg-imdb-gray p-6 rounded-lg border border-gray-700">
                         <h4 class="text-white font-bold mb-4 flex items-center gap-2">
                             <svg class="w-5 h-5 text-imdb-yellow" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -265,23 +256,21 @@
                         <div class="space-y-3 text-sm">
                             @if($film['released'] !== 'N/A')
                             <div class="flex justify-between border-b border-gray-700 pb-2">
-                                <span class="text-gray-400">Rilis</span>
+                                <span class="text-gray-300">Rilis</span>
                                 <span>{{ $film['released'] }}</span>
                             </div>
                             @endif
                             
                             @if($film['boxOffice'] !== 'N/A')
                             <div class="flex justify-between border-b border-gray-700 pb-2">
-                                <span class="text-gray-400">Box Office</span>
+                                <span class="text-gray-300">Box Office</span>
                                 <span class="flex items-center gap-1">
-                                    <svg class="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                                    <svg class="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
                                         <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z"/>
                                         <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clip-rule="evenodd"/>
                                     </svg>
                                     @php
-                                        // Format box office dengan koma
                                         $boxOffice = $film['boxOffice'];
-                                        // Ekstrak angka dari string (misal: $623575910)
                                         if (preg_match('/[\d.]+/', $boxOffice, $matches)) {
                                             $number = floatval($matches[0]);
                                             $formatted = '$' . number_format($number, 0, '.', ',');
@@ -295,40 +284,53 @@
                             
                             @if(!empty($film['dbpedia']['budget']))
                             <div class="flex justify-between border-b border-gray-700 pb-2">
-                                <span class="text-gray-400">Budget <span class="text-xs text-blue-400">(DBpedia)</span></span>
+                                <span class="text-gray-300">Budget <span class="text-xs text-blue-300">(DBpedia)</span></span>
                                 <span class="flex items-center gap-1">
-                                    <svg class="w-4 h-4 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                                    <svg class="w-4 h-4 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
                                         <path fill-rule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/>
                                     </svg>
                                     {{ $film['dbpedia']['budget'] }}
                                 </span>
                             </div>
+
+                            <div class="flex justify-between border-b border-gray-700 pb-2 bg-gray-800 bg-opacity-50 p-2 rounded mt-2">
+                                <div>
+                                    <span class="block text-gray-300 font-bold">Analisis Profit</span>
+                                    <span class="text-[10px] text-yellow-500 tracking-wider uppercase">(Semantik Data)</span>
+                                </div>
+                                <div class="text-right">
+                                    <span class="block font-bold {{ $film['profit_class'] ?? 'text-gray-400' }} text-base">
+                                        {{ $film['profit_status'] ?? 'N/A' }}
+                                    </span>
+                                    <span class="text-[10px] text-gray-500">BoxOffice - Budget</span>
+                                </div>
+                            </div>
                             @endif
                             
                             @if($film['awards'] !== 'N/A')
                             <div class="flex justify-between border-b border-gray-700 pb-2">
-                                <span class="text-gray-400">Penghargaan</span>
+                                <span class="text-gray-300">Penghargaan</span>
                                 <span class="text-right max-w-[60%]">{{ $film['awards'] }}</span>
                             </div>
                             @endif
                             
                             @if(!empty($film['languages']))
                             <div class="flex justify-between border-b border-gray-700 pb-2">
-                                <span class="text-gray-400">Bahasa</span>
+                                <span class="text-gray-300">Bahasa</span>
                                 <span property="inLanguage">{{ $film['languages'] }}</span>
                             </div>
                             @endif
                             
                             @if(!empty($film['countries']))
                             <div class="flex justify-between border-b border-gray-700 pb-2">
-                                <span class="text-gray-400">Negara</span>
+                                <span class="text-gray-300">Negara</span>
                                 <span property="countryOfOrigin">{{ $film['countries'] }}</span>
                             </div>
                             @endif
                             
                             @php($imdbId = last(explode('/', rtrim($film['film'], '/'))))
                             <div class="flex justify-between">
-                                <span class="text-gray-400">Halaman IMDb</span>
+                                <span class="text-gray-300">Halaman IMDb</span>
                                 <a href="https://www.imdb.com/title/{{ $imdbId }}/" target="_blank" class="text-imdb-yellow hover:underline flex items-center gap-1">
                                     {{ $imdbId }}
                                     <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -338,6 +340,20 @@
                             </div>
                         </div>
                     </div>
+                </div>
+
+                <div class="mt-12">
+                    <h3 class="text-2xl font-bold text-white mb-4 flex items-center gap-2">
+                        <svg class="w-8 h-8 text-imdb-yellow" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                        </svg>
+                        Visualisasi Knowledge Graph
+                    </h3>
+                    <p class="text-gray-400 mb-6">
+                        Visualisasi interaktif relasi semantik antara film, aktor, dan sutradara. 
+                        <span class="text-imdb-yellow font-semibold">Coba tarik node-node di bawah ini!</span>
+                    </p>
+                    <div id="semantic-network" class="w-full h-[500px] bg-gray-900 rounded-xl border border-gray-700 shadow-inner"></div>
                 </div>
 
             </div>
@@ -357,6 +373,92 @@
     </footer>
 
     @include('partials.chatbot')
+
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            @if(isset($graphData))
+            const graphData = {!! $graphData !!};
+            
+            const container = document.getElementById('semantic-network');
+            
+            const data = {
+                nodes: new vis.DataSet(graphData.nodes),
+                edges: new vis.DataSet(graphData.edges)
+            };
+            
+            const options = {
+                nodes: {
+                    shape: 'dot',
+                    size: 20,
+                    font: {
+                        size: 14,
+                        color: '#ffffff',
+                        face: 'sans-serif'
+                    },
+                    borderWidth: 2,
+                    shadow: true
+                },
+                edges: {
+                    width: 2,
+                    color: { color: '#6b7280', highlight: '#f5c518' },
+                    smooth: {
+                        type: 'continuous'
+                    },
+                    font: {
+                        color: '#e5e7eb',
+                        size: 10,
+                        align: 'middle'
+                    }
+                },
+                groups: {
+                    mainFilm: {
+                        color: { background: '#f5c518', border: '#b4860b' },
+                        size: 35,
+                        font: { size: 18, color: '#000000', face: 'bold' }
+                    },
+                    actor: {
+                        color: { background: '#3b82f6', border: '#1d4ed8' },
+                        size: 20
+                    },
+                    director: {
+                        color: { background: '#ef4444', border: '#b91c1c' },
+                        size: 20
+                    },
+                    relatedFilm: {
+                        color: { background: '#10b981', border: '#047857' },
+                        size: 15,
+                        shape: 'diamond'
+                    }
+                },
+                physics: {
+                    stabilization: false,
+                    barnesHut: {
+                        gravitationalConstant: -2000,
+                        springConstant: 0.04,
+                        springLength: 150
+                    }
+                },
+                interaction: {
+                    hover: true,
+                    tooltipDelay: 200
+                }
+            };
+            
+            const network = new vis.Network(container, data, options);
+            
+            network.on("doubleClick", function (params) {
+                if (params.nodes.length === 1) {
+                    const nodeId = params.nodes[0];
+                    const node = data.nodes.get(nodeId);
+                    if (node.group === 'relatedFilm') {
+                        window.location.href = "{{ route('film.search') }}?query=" + encodeURIComponent(node.title.split(': ')[1]);
+                    }
+                }
+            });
+            @endif
+        });
+    </script>
 
 </body>
 </html>

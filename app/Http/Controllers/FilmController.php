@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Services\FusekiService;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Str;
 
 class FilmController extends Controller
 {
@@ -26,6 +27,14 @@ class FilmController extends Controller
             return str_replace('_', ' ', urldecode($fragment));
         }
         return str_replace('_', ' ', basename(urldecode($uri)));
+    }
+
+    private function cleanCurrencyToFloat($currencyString) {
+        if (!is_string($currencyString) || empty($currencyString) || $currencyString === 'N/A') {
+            return 0.0;
+        }
+        $cleanedString = preg_replace('/[^0-9.]/', '', $currencyString);
+        return floatval($cleanedString);
     }
 
     public function search(Request $request)
@@ -484,11 +493,135 @@ class FilmController extends Controller
         $dbpediaData = $this->dbpedia->getFilmInfo($film['title'], $film['year']);
         $film['dbpedia'] = $dbpediaData;
 
+        $boxOfficeString = $film['boxOffice'] ?? 'N/A'; 
+        $budgetString = $film['dbpedia']['budget'] ?? 'N/A'; 
+
+        $boxOffice = $this->cleanCurrencyToFloat($boxOfficeString);
+        $budget = $this->cleanCurrencyToFloat($budgetString);
+
+        $profit = 0.0;
+        $profitStatus = 'Data N/A';
+        $profitClass = 'text-muted'; 
+        
+        if ($boxOffice > 0 && $budget > 0) {
+            $profit = $boxOffice - $budget;
+            $formattedProfit = '$' . number_format(abs($profit), 0, '.', ',');
+
+            if ($profit > 0) {
+                $profitStatus = "Untung ({$formattedProfit})";
+                $profitClass = 'text-green-400'; 
+            } elseif ($profit < 0) {
+                $profitStatus = "Rugi ({$formattedProfit})";
+                $profitClass = 'text-red-400'; 
+            } else {
+                $profitStatus = "Break Even";
+                $profitClass = 'text-blue-400';
+            }
+            
+        } elseif ($boxOffice > 0 && $budget == 0) {
+             $profitStatus = "Anggaran (Budget) tidak ditemukan di DBpedia.";
+             $profitClass = 'text-yellow-400';
+        } elseif ($boxOffice == 0 && $budget > 0) {
+            $profitStatus = "Pemasukan (Box Office) tidak ditemukan di Fuseki.";
+            $profitClass = 'text-yellow-400';
+        } else {
+            $profitStatus = 'Anggaran dan Pemasukan N/A';
+            $profitClass = 'text-gray-400';
+        }
+
+        $film['profit_status'] = $profitStatus;
+        $film['profit_class'] = $profitClass;
+
+        $nodes = [];
+        $edges = [];
+        
+        $nodes[] = [
+            'id' => 0, 
+            'label' => Str::limit($film['title'], 20), 
+            'group' => 'mainFilm',
+            'title' => $film['title']
+        ];
+
+        $nodeIdCounter = 1;
+
+        if (!empty($film['directors_list'])) {
+            foreach (array_slice($film['directors_list'], 0, 3) as $director) {
+                $id = $nodeIdCounter++;
+                $nodes[] = [
+                    'id' => $id, 
+                    'label' => $director, 
+                    'group' => 'director'
+                ];
+                $edges[] = [
+                    'from' => $id, 
+                    'to' => 0, 
+                    'label' => 'Sutradara'
+                ];
+            }
+        }
+
+        if (!empty($film['actors_list'])) {
+            $topActors = array_slice($film['actors_list'], 0, 5);
+            
+            foreach ($topActors as $index => $actor) {
+                $id = $nodeIdCounter++;
+                $nodes[] = [
+                    'id' => $id, 
+                    'label' => $actor, 
+                    'group' => 'actor'
+                ];
+                $edges[] = [
+                    'from' => $id, 
+                    'to' => 0, 
+                    'label' => 'Pemeran'
+                ];
+
+                if ($index === 0) {
+                    $cleanActorName = str_replace("'", "\\'", $actor); 
+                    
+                    $relatedQuery = "
+                        SELECT DISTINCT ?title 
+                        WHERE {
+                            ?film fm:actor ?actor .
+                            ?film fm:title ?title .
+                            BIND(STRAFTER(STR(?actor), '#') AS ?actorName)
+                            FILTER(LCASE(REPLACE(?actorName, '_', ' ')) = LCASE('{$cleanActorName}'))
+                            FILTER(?title != \"{$film['title']}\") 
+                        } LIMIT 2
+                    ";
+                    
+                    $relatedFilms = $this->fuseki->query($relatedQuery);
+                    
+                    foreach ($relatedFilms as $rFilm) {
+                        $relatedId = $nodeIdCounter++;
+                        $nodes[] = [
+                            'id' => $relatedId,
+                            'label' => Str::limit($rFilm['title'], 15),
+                            'group' => 'relatedFilm',
+                            'title' => "Film lain dari $actor: " . $rFilm['title']
+                        ];
+                        $edges[] = [
+                            'from' => $relatedId,
+                            'to' => $id,
+                            'label' => 'Film Lain',
+                            'dashes' => true
+                        ];
+                    }
+                }
+            }
+        }
+
+        $graphData = [
+            'nodes' => $nodes,
+            'edges' => $edges
+        ];
+
         $searchQuery = $request->input('query');
 
         return view('detail', [
             'film' => $film,
-            'searchQuery' => $searchQuery
+            'searchQuery' => $searchQuery,
+            'graphData' => json_encode($graphData)
         ]);
     }
 

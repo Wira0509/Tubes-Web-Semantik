@@ -56,8 +56,8 @@ class FilmController extends Controller
         if ($searchQuery) {
             $cleanSearchQuery = strtolower($searchQuery);
             $cleanSearchQuery = str_replace(
-                [' ', '-', ':', '_', '4', '1', '0', '3'], 
-                ['', '', '', '', 'a', 'i', 'o', 'e'], 
+                [' ', '-', ':', '_', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'], 
+                ['', '', '', '', 'o', 'i', 'z', 'e', 'a', 's', 'g', 't', 'b', 'g'], 
                 $cleanSearchQuery
             );
 
@@ -72,12 +72,14 @@ class FilmController extends Controller
                 BIND(COALESCE(STR(?yearB), '') AS ?yearStr)
 
                 BIND(LCASE(?title) AS ?lcaseTitle)
-                BIND(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(?lcaseTitle, ' ', ''), '-', ''), ':', ''), '4', 'a'), '1', 'i'), '0', 'o') AS ?cleanTitle)
+                BIND(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(?lcaseTitle, ' ', ''), '-', ''), ':', ''), '0', 'o'), '1', 'i'), '2', 'z'), '3', 'e'), '4', 'a'), '5', 's'), '6', 'g') AS ?cleanTitle_temp)
+                BIND(REPLACE(REPLACE(REPLACE(?cleanTitle_temp, '7', 't'), '8', 'b'), '9', 'g') AS ?cleanTitle)
                 
                 OPTIONAL { 
                     ?film fm:plot ?plotB .
                     BIND(LCASE(?plotB) AS ?lcasePlot)
-                    BIND(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(?lcasePlot, ' ', ''), '-', ''), ':', ''), '4', 'a'), '1', 'i'), '0', 'o') AS ?cleanPlot_intermediate)
+                    BIND(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(?lcasePlot, ' ', ''), '-', ''), ':', ''), '0', 'o'), '1', 'i'), '2', 'z'), '3', 'e'), '4', 'a'), '5', 's'), '6', 'g') AS ?cleanPlot_temp)
+                    BIND(REPLACE(REPLACE(REPLACE(?cleanPlot_temp, '7', 't'), '8', 'b'), '9', 'g') AS ?cleanPlot_intermediate)
                 }
                 
                 OPTIONAL {
@@ -85,7 +87,8 @@ class FilmController extends Controller
                     BIND(STRAFTER(STR(?actorUri), '#') AS ?actorNameOnly) 
                     BIND(REPLACE(?actorNameOnly, '_', ' ') AS ?actorNameSpaced)
                     BIND(LCASE(?actorNameSpaced) AS ?lcaseActor)
-                    BIND(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(?lcaseActor, ' ', ''), '-', ''), ':', ''), '4', 'a'), '1', 'i'), '0', 'o') AS ?cleanActor_intermediate)
+                    BIND(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(?lcaseActor, ' ', ''), '-', ''), ':', ''), '0', 'o'), '1', 'i'), '2', 'z'), '3', 'e'), '4', 'a'), '5', 's'), '6', 'g') AS ?cleanActor_temp)
+                    BIND(REPLACE(REPLACE(REPLACE(?cleanActor_temp, '7', 't'), '8', 'b'), '9', 'g') AS ?cleanActor_intermediate)
                 }
 
                 OPTIONAL {
@@ -93,7 +96,8 @@ class FilmController extends Controller
                     BIND(STRAFTER(STR(?directorUri), '#') AS ?directorNameOnly) 
                     BIND(REPLACE(?directorNameOnly, '_', ' ') AS ?directorNameSpaced)
                     BIND(LCASE(?directorNameSpaced) AS ?lcaseDirector)
-                    BIND(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(?lcaseDirector, ' ', ''), '-', ''), ':', ''), '4', 'a'), '1', 'i'), '0', 'o') AS ?cleanDirector_intermediate)
+                    BIND(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(?lcaseDirector, ' ', ''), '-', ''), ':', ''), '0', 'o'), '1', 'i'), '2', 'z'), '3', 'e'), '4', 'a'), '5', 's'), '6', 'g') AS ?cleanDirector_temp)
+                    BIND(REPLACE(REPLACE(REPLACE(?cleanDirector_temp, '7', 't'), '8', 'b'), '9', 'g') AS ?cleanDirector_intermediate)
                 }
 
                 OPTIONAL {
@@ -101,7 +105,8 @@ class FilmController extends Controller
                     BIND(STRAFTER(STR(?writerUri), '#') AS ?writerNameOnly) 
                     BIND(REPLACE(?writerNameOnly, '_', ' ') AS ?writerNameSpaced)
                     BIND(LCASE(?writerNameSpaced) AS ?lcaseWriter)
-                    BIND(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(?lcaseWriter, ' ', ''), '-', ''), ':', ''), '4', 'a'), '1', 'i'), '0', 'o') AS ?cleanWriter_intermediate)
+                    BIND(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(?lcaseWriter, ' ', ''), '-', ''), ':', ''), '0', 'o'), '1', 'i'), '2', 'z'), '3', 'e'), '4', 'a'), '5', 's'), '6', 'g') AS ?cleanWriter_temp)
+                    BIND(REPLACE(REPLACE(REPLACE(?cleanWriter_temp, '7', 't'), '8', 'b'), '9', 'g') AS ?cleanWriter_intermediate)
                 }
 
                 OPTIONAL {

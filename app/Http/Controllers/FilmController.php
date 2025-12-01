@@ -493,7 +493,7 @@ class FilmController extends Controller
         $dbpediaData = $this->dbpedia->getFilmInfo($film['title'], $film['year']);
         $film['dbpedia'] = $dbpediaData;
 
-        $boxOfficeString = $film['boxOffice'] ?? 'N/A'; 
+        $boxOfficeString = $film['dbpedia']['boxOffice'] ?? $film['boxOffice'] ?? 'N/A'; 
         $budgetString = $film['dbpedia']['budget'] ?? 'N/A'; 
 
         $boxOffice = $this->cleanCurrencyToFloat($boxOfficeString);

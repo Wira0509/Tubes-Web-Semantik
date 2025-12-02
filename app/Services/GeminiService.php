@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Cache;
 class GeminiService
 {
     private $apiKey;
+    // Menggunakan Gemini 2.0 Flash sesuai request
     private $apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
     public function __construct()
@@ -21,47 +22,30 @@ class GeminiService
     }
 
     /**
-     * Chat with conversation memory
+     * Chat with intent awareness
      */
-    public function chat($message, $filmContext = [], $conversationHistory = [], $recommendedBefore = [])
+    public function chat($message, $filmContext = [], $conversationHistory = [], $recommendedBefore = [], $intent = null)
     {
         try {
-            // 🔍 DEBUG LOG
-            Log::channel('single')->info('🔍 GEMINI CHAT START', [
-                'user_message' => $message,
-                'total_films_available' => count($filmContext),
-                'history_turns' => count($conversationHistory),
-                'already_recommended' => count($recommendedBefore),
-                'recommended_ids' => array_slice($recommendedBefore, -10)
+            Log::info('🔍 GEMINI CHAT START', [
+                'message_preview' => substr($message, 0, 50),
+                'intent' => $intent['type'] ?? 'unknown',
             ]);
 
             if ($this->isRateLimited()) {
-                Log::warning('⚠️ RATE LIMITED - Using fallback');
+                Log::warning('⚠️ Rate limited locally, using fallback');
                 return $this->getFallbackResponse($message, $filmContext, $recommendedBefore);
             }
 
             $optimizedContext = $this->optimizeSmartContext($filmContext, $message, $recommendedBefore);
-            
-            // 🔍 DEBUG: Log optimized context
-            Log::info('📊 CONTEXT OPTIMIZATION', [
-                'original_count' => count($filmContext),
-                'optimized_count' => count($optimizedContext),
-                'excluded_count' => count($recommendedBefore),
-                'sample_optimized_films' => array_slice(array_map(fn($f) => [
-                    'id' => $f['imdb_id'],
-                    'title' => $f['title'],
-                    'score' => $f['relevance_score'] ?? 0
-                ], $optimizedContext), 0, 5)
-            ]);
-            
             $systemPrompt = $this->buildConversationalPrompt($optimizedContext, $conversationHistory, $recommendedBefore);
 
-            // 🔍 DEBUG: Log prompt size
             Log::info('📝 PROMPT BUILT', [
                 'prompt_length' => strlen($systemPrompt),
-                'estimated_tokens' => intval(strlen($systemPrompt) / 4)
+                'context_count' => count($optimizedContext)
             ]);
 
+            // UPGRADE: Increase output tokens for complete responses
             $response = Http::timeout(60)
                 ->retry(2, 100)
                 ->withHeaders(['Content-Type' => 'application/json'])
@@ -70,10 +54,11 @@ class GeminiService
                         'parts' => [['text' => $systemPrompt . "\n\nUser: " . $message . "\n\nAsisten:"]]
                     ]],
                     'generationConfig' => [
-                        'temperature' => 1.0, // Creative
+                        'temperature' => 0.7, // LOWER for more focused reasoning
                         'topK' => 40,
-                        'topP' => 0.95,
-                        'maxOutputTokens' => 600,
+                        'topP' => 0.9,
+                        'maxOutputTokens' => 2000, // INCREASE from 1500
+                        'stopSequences' => ["\n\nUser:", "\n\n---"]
                     ],
                     'safetySettings' => [
                         ['category' => 'HARM_CATEGORY_HARASSMENT', 'threshold' => 'BLOCK_NONE'],
@@ -83,42 +68,43 @@ class GeminiService
                     ]
                 ]);
 
+            // 6. Handle Response Errors
             if ($response->status() === 429) {
                 $this->markRateLimited();
+                Log::warning('⚠️ Google Rate Limit Hit (429)');
                 return $this->getFallbackResponse($message, $filmContext, $recommendedBefore);
             }
 
             if (!$response->successful()) {
-                Log::error('Gemini API Error', ['status' => $response->status()]);
+                Log::error('❌ Gemini API Failed', [
+                    'status' => $response->status(),
+                    'body' => $response->body()
+                ]);
+                
                 if ($response->status() === 400) {
                     throw new \Exception('API_KEY_INVALID');
                 }
                 return $this->getFallbackResponse($message, $filmContext, $recommendedBefore);
             }
 
+            // 7. Extract Text
             $data = $response->json();
 
             if (isset($data['candidates'][0]['content']['parts'][0]['text'])) {
                 $text = trim($data['candidates'][0]['content']['parts'][0]['text']);
                 
-                // 🔍 DEBUG: Log AI response
                 Log::info('✅ GEMINI SUCCESS', [
-                    'response_length' => strlen($text),
-                    'response_preview' => substr($text, 0, 150),
-                    'extracted_film_ids' => $this->extractFilmIds($text)
+                    'response_length' => strlen($text)
                 ]);
                 
                 return $text;
             }
 
-            Log::warning('⚠️ INVALID RESPONSE STRUCTURE', [
-                'data' => $data
-            ]);
-
+            Log::warning('⚠️ Invalid Response Structure', ['data' => $data]);
             return $this->getFallbackResponse($message, $filmContext, $recommendedBefore);
 
         } catch (\Exception $e) {
-            Log::error('❌ GEMINI ERROR', [
+            Log::error('❌ GEMINI EXCEPTION', [
                 'error' => $e->getMessage(),
                 'line' => $e->getLine(),
                 'file' => $e->getFile()
@@ -133,28 +119,25 @@ class GeminiService
     }
 
     /**
-     * UPGRADE: Context optimization dengan conversation awareness
+     * UPGRADE: Plot-aware context optimization
      */
     private function optimizeSmartContext($allFilms, $userMessage, $recommendedBefore = [])
     {
-        Log::info('🔄 CONTEXT OPTIMIZATION', [
+        Log::info('🔄 INTELLIGENT CONTEXT SEARCH', [
             'message' => substr($userMessage, 0, 50),
-            'total_available' => count($allFilms)
+            'total_db' => count($allFilms)
         ]);
 
         // 1. Exclude recommended
         $available = array_filter($allFilms, fn($f) => !in_array($f['imdb_id'], $recommendedBefore));
-        
-        if (empty($available)) {
-            $available = $allFilms;
-        }
+        if (empty($available)) $available = $allFilms;
 
-        // 2. SMART KEYWORD SCORING
-        $keywords = explode(' ', strtolower(preg_replace('/[^a-zA-Z0-9 ]/', '', $userMessage)));
-        $scored = [];
+        // 2. Extract semantic keywords
+        $keywords = $this->extractSemanticKeywords($userMessage);
         
-        // Detect if user asking for more/other films
-        $isFollowUp = preg_match('/(lain|lagi|selain|yang lain|ada lagi|coba|asih|tunjuk)/i', $userMessage);
+        Log::info('🔍 KEYWORDS EXTRACTED', $keywords);
+        
+        $scored = [];
         
         foreach ($available as $film) {
             $score = 0;
@@ -162,25 +145,33 @@ class GeminiService
             $title = strtolower($film['title'] ?? '');
             $genres = is_array($film['genre']) ? strtolower(implode(' ', $film['genre'])) : strtolower($film['genre'] ?? '');
             $plot = strtolower($film['plot'] ?? '');
-            $year = (string)($film['year'] ?? '');
+            $director = strtolower($film['director'] ?? '');
+            $cast = is_array($film['cast']) ? strtolower(implode(' ', $film['cast'])) : strtolower($film['cast'] ?? '');
             
-            foreach ($keywords as $kw) {
-                if (strlen($kw) < 2) continue;
-                
-                if ($title === $kw) $score += 100;
+            // HIGH PRIORITY: Character/Theme matches in plot
+            foreach ($keywords['high_priority'] as $kw) {
+                if (str_contains($title, $kw)) $score += 150; // Title match = highest
+                if (str_contains($plot, $kw)) $score += 100; // Plot match = very high (Woody/Buzz in Toy Story plot)
+                if (str_contains($genres, $kw)) $score += 80;
+                if (str_contains($cast, $kw)) $score += 40;
+            }
+            
+            // MEDIUM PRIORITY: Mood matches
+            foreach ($keywords['medium_priority'] as $kw) {
                 if (str_contains($title, $kw)) $score += 50;
                 if (str_contains($genres, $kw)) $score += 40;
+                if (str_contains($plot, $kw)) $score += 20;
+            }
+
+            // LOW PRIORITY: General words
+            foreach ($keywords['low_priority'] as $kw) {
+                if (str_contains($title, $kw)) $score += 20;
                 if (str_contains($plot, $kw)) $score += 15;
-                if ($year === $kw) $score += 20;
+                if (str_contains($genres, $kw)) $score += 10;
             }
             
-            // Bonus for high rating
-            $score += floatval($film['rating'] ?? 0) * 2;
-            
-            // If follow-up, prioritize diversity
-            if ($isFollowUp) {
-                $score += rand(0, 20); // Add randomness
-            }
+            // Bonus: High rating
+            $score += floatval($film['rating'] ?? 0) * 3;
             
             if ($score > 0) {
                 $film['relevance_score'] = $score;
@@ -188,58 +179,18 @@ class GeminiService
             }
         }
 
-        // 3. MOOD/GENRE DETECTION
+        // Fallback if no matches
         if (empty($scored)) {
-            $moodMap = [
-                'sedih|sad|cry|down' => ['Drama', 'Romance'],
-                'senang|happy|fun|ceria' => ['Comedy', 'Animation', 'Family'],
-                'tegang|horror|scare|takut' => ['Horror', 'Thriller'],
-                'action|fight|war|ledakan' => ['Action', 'Adventure'],
-                'romantis|love|romance|cinta' => ['Romance', 'Drama'],
-                'anak|kids|family|keluarga' => ['Animation', 'Family'],
-                'scifi|space|future' => ['Sci-Fi', 'Fantasy'],
-                'taktis|spy|heist|pintar' => ['Thriller', 'Crime'],
-            ];
-            
-            $messageLower = strtolower($userMessage);
-            $targetGenres = [];
-            
-            foreach ($moodMap as $pattern => $genres) {
-                if (preg_match("/($pattern)/", $messageLower)) {
-                    $targetGenres = array_merge($targetGenres, $genres);
-                }
-            }
-            
-            if (!empty($targetGenres)) {
-                foreach ($available as $film) {
-                    $filmGenres = is_array($film['genre']) ? $film['genre'] : [$film['genre']];
-                    
-                    foreach ($targetGenres as $target) {
-                        if (in_array($target, $filmGenres)) {
-                            $film['relevance_score'] = 50 + floatval($film['rating'] ?? 0) * 2;
-                            $scored[] = $film;
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-
-        // 4. FALLBACK: Top rated + diversity
-        if (empty($scored)) {
+            Log::warning('No keyword matches, using top rated');
             $byRating = $available;
             usort($byRating, fn($a,$b) => floatval($b['rating']??0) <=> floatval($a['rating']??0));
-            $scored = array_slice($byRating, 0, 40);
-            
-            // Add random for diversity
-            shuffle($available);
-            $random = array_slice($available, 0, 20);
-            $scored = array_merge($scored, $random);
+            $scored = array_slice($byRating, 0, 50);
         }
 
-        // 5. SORT & DEDUPLICATE
+        // Sort by score
         usort($scored, fn($a,$b) => ($b['relevance_score']??0) <=> ($a['relevance_score']??0));
         
+        // Deduplicate
         $unique = [];
         foreach ($scored as $film) {
             if (!isset($unique[$film['imdb_id']])) {
@@ -247,141 +198,178 @@ class GeminiService
             }
         }
         
-        // Return 60 films (enough untuk conversation)
-        $result = array_slice(array_values($unique), 0, 60);
+        // Return top 100
+        $result = array_slice(array_values($unique), 0, 100);
 
-        Log::info('✅ CONTEXT READY', [
-            'final_count' => count($result),
-            'top_3_titles' => array_map(fn($f) => $f['title'], array_slice($result, 0, 3))
+        Log::info('✅ CONTEXT OPTIMIZED', [
+            'result_count' => count($result),
+            'top_match' => $result[0]['title'] ?? 'none',
+            'top_score' => $result[0]['relevance_score'] ?? 0
         ]);
 
         return $result;
     }
 
     /**
-     * UPGRADE: Context-aware conversational prompt
+     * UPGRADE: Enhanced semantic keyword extraction dengan character detection
+     */
+    private function extractSemanticKeywords($message)
+    {
+        $messageLower = strtolower(preg_replace('/[^a-zA-Z0-9 ]/', '', $message));
+        $words = explode(' ', $messageLower);
+            
+        $highPriority = [];
+        $mediumPriority = [];
+        $lowPriority = [];
+        
+        // UPGRADE: Character/Theme keywords
+        $characterKeywords = ['koboi', 'cowboy', 'astronot', 'astronaut', 'superhero', 'princess', 'robot', 'alien', 'zombie', 'wizard', 'pirate', 'detective'];
+        $genreKeywords = ['action', 'comedy', 'drama', 'horror', 'thriller', 'romance', 'scifi', 'fantasy', 'animation', 'cartoon', 'kartun', 'anime', 'family'];
+        $typeKeywords = ['mobil', 'car', 'racing', 'balap', 'war', 'perang', 'space', 'monster', 'dinosaur', 'dragon'];
+        $moodKeywords = ['sedih', 'senang', 'happy', 'sad', 'scary', 'funny', 'tegang', 'romantic', 'epic', 'dark', 'suram', 'ceria'];
+        $stopWords = ['aku', 'saya', 'mau', 'pengen', 'dong', 'nih', 'yang', 'nya', 'aja', 'deh', 'gak', 'nggak', 'film', 'movie', 'nonton', 'ada', 'dia', 'punya', 'kawan', 'teman'];
+
+        foreach ($words as $word) {
+            if (strlen($word) < 3 || in_array($word, $stopWords)) continue;
+            
+            // HIGH: Characters & Genres
+            if (in_array($word, $characterKeywords) || in_array($word, $genreKeywords) || in_array($word, $typeKeywords)) {
+                $highPriority[] = $word;
+            }
+            // MEDIUM: Moods
+            elseif (in_array($word, $moodKeywords)) {
+                $mediumPriority[] = $word;
+            }
+            // LOW: Other descriptive words
+            else {
+                $lowPriority[] = $word;
+            }
+        }
+
+        return [
+            'high_priority' => array_unique($highPriority),
+            'medium_priority' => array_unique($mediumPriority),
+            'low_priority' => array_unique($lowPriority),
+        ];
+    }
+
+    /**
+     * ULTIMATE UPGRADE: Natural Language Understanding Prompt
      */
     private function buildConversationalPrompt($filmContext, $conversationHistory, $recommendedBefore)
     {
         $total = count($filmContext);
-        $recCount = count($recommendedBefore);
-        $turnCount = count($conversationHistory);
+        
+        $prompt = "🎬 YOU ARE: Expert Film Consultant with HUMAN-LEVEL UNDERSTANDING\n\n";
+        
+        $prompt .= "CORE CAPABILITIES:\n";
+        $prompt .= "1. 🧠 REASONING: You can DEDUCE films from descriptions\n";
+        $prompt .= "   Example: 'kartun koboi + astronot' → Think: Toy Story!\n";
+        $prompt .= "2. 🔍 SEARCH: Match keywords to film plot/characters\n";
+        $prompt .= "3. 💬 NATURAL: Talk like a knowledgeable friend, NOT a robot\n";
+        $prompt .= "4. ✅ COMPLETE: ALWAYS finish your sentences properly\n\n";
+        
+        $prompt .= "RESPONSE GUIDELINES:\n";
+        $prompt .= "❌ BAD: 'Kamu suka atau .' ← INCOMPLETE!\n";
+        $prompt .= "✅ GOOD: 'Oh! Maksudnya Toy Story ya? Koboi Woody & Buzz Lightyear si astronot! [FILM:tt0114709]'\n";
+        $prompt .= "✅ GOOD: 'Hmm, aku ga nemu film yang pas. Bisa kasih detail lebih?'\n\n";
+        
+        $prompt .= "HOW TO THINK:\n";
+        $prompt .= "Step 1: READ user description carefully\n";
+        $prompt .= "Step 2: MATCH keywords to film database below\n";
+        $prompt .= "Step 3: REASON: 'Oh, kartun + koboi + astronot = likely Toy Story!'\n";
+        $prompt .= "Step 4: RESPOND naturally + give [FILM:id]\n\n";
+        
+        $prompt .= "CONVERSATION CONTEXT:\n";
+        $prompt .= "Available films in database: {$total} (most relevant to user query)\n";
+        $prompt .= "Format: [FILM:imdb_id] to recommend (max 2-3)\n";
+        $prompt .= "NEVER mention film titles in plain text (auto-show as cards)\n\n";
 
-        $prompt = "🎬 ASISTEN FILM PINTAR - Kamu teman ngobrol film yang asik\n\n";
-        
-        $prompt .= "KEPRIBADIAN:\n";
-        $prompt .= "- Ramah, santai, kayak teman dekat\n";
-        $prompt .= "- Ga buru-buru kasih rekomendasi\n";
-        $prompt .= "- Suka tanya balik untuk pahami preferensi user\n";
-        $prompt .= "- Kasih rekomendasi bertahap (2-3 film max per turn)\n";
-        $prompt .= "- Fokus ke konteks pembicaraan sebelumnya\n\n";
-        
-        $prompt .= "CARA KERJA:\n";
-        $prompt .= "1. BACA HISTORY - Pahami apa yang udah dibahas\n";
-        $prompt .= "2. PAHAMI INTENT - User mau apa? Info film? Rekomendasi? Ngobrol?\n";
-        $prompt .= "3. TANYA KLARIFIKASI - Kalau belum jelas, tanya dulu\n";
-        $prompt .= "4. KASIH REKOMENDASI - Max 2-3 film, dengan alasan\n";
-        $prompt .= "5. FOLLOW UP - Tanya pendapat atau mau lanjut?\n\n";
-        
-        $prompt .= "ATURAN PENTING:\n";
-        $prompt .= "❌ JANGAN langsung bombardir banyak film\n";
-        $prompt .= "❌ JANGAN rekomendasiin film yang sama\n";
-        $prompt .= "❌ JANGAN sebut judul di text (card auto-muncul)\n";
-        $prompt .= "✅ TANYA mood/genre dulu kalau user vague\n";
-        $prompt .= "✅ Kasih alasan KENAPA film cocok\n";
-        $prompt .= "✅ Max 2-3 film per response\n\n";
-
-        // CONVERSATION CONTEXT
+        // Enhanced conversation history
         if (!empty($conversationHistory)) {
-            $prompt .= "📚 KONTEKS PERCAKAPAN (Baca ini baik-baik!):\n";
+            $prompt .= "📚 RECENT CONVERSATION (Use this to understand context!):\n";
+            $lastTurns = array_slice($conversationHistory, -4);
             
-            $lastTurns = array_slice($conversationHistory, -3);
             foreach ($lastTurns as $i => $turn) {
-                $turnNum = $turnCount - count($lastTurns) + $i + 1;
                 $userMsg = $turn['user'] ?? '';
                 $yourMsg = $turn['assistant'] ?? '';
-                $films = $turn['films'] ?? [];
                 
                 $prompt .= sprintf(
-                    "Turn %d:\n  User: \"%s\"\n  Kamu: \"%s\"%s\n\n",
-                    $turnNum,
-                    substr($userMsg, 0, 80),
-                    substr($yourMsg, 0, 80),
-                    !empty($films) ? "\n  Films: " . implode(', ', $films) : ""
+                    "Turn %d:\n  User: \"%s\"\n  You: \"%s\"\n\n",
+                    $i + 1,
+                    substr($userMsg, 0, 120),
+                    substr($yourMsg, 0, 120)
                 );
             }
-            
-            $prompt .= "👉 PENTING: Lanjutkan percakapan ini dengan natural!\n\n";
-        } else {
-            $prompt .= "📚 KONTEKS: Ini percakapan pertama dengan user.\n\n";
         }
 
-        // RECOMMENDED FILMS
-        if ($recCount > 0) {
-            $prompt .= "🚫 FILM YANG UDAH DIREKOMENDASIIN (JANGAN ULANGI):\n";
-            $prompt .= implode(', ', array_slice($recommendedBefore, -15)) . "\n\n";
+        // Films to avoid
+        if (!empty($recommendedBefore)) {
+            $prompt .= "🚫 ALREADY RECOMMENDED (Don't repeat): " . implode(', ', array_slice($recommendedBefore, -15)) . "\n\n";
         }
 
-        // FILM DATABASE
-        $prompt .= "🎥 DATABASE ({$total} film paling relevan):\n";
+        // CRITICAL: Film database with PLOT DESCRIPTIONS
+        $prompt .= "🎥 FILM DATABASE ({$total} films - Search by title/plot/characters):\n\n";
         
-        foreach (array_slice($filmContext, 0, 50) as $i => $f) {
-            $genre = is_array($f['genre']) ? implode('/', array_slice($f['genre'], 0, 2)) : ($f['genre'] ?? '');
+        foreach (array_slice($filmContext, 0, 100) as $i => $f) {
+            $genre = is_array($f['genre']) ? implode(', ', array_slice($f['genre'], 0, 2)) : ($f['genre'] ?? '?');
             $year = $f['year'] ?? '?';
             $rating = number_format($f['rating'] ?? 0, 1);
             
+            // UPGRADE: Include plot for better matching
+            $plot = !empty($f['plot']) ? ' | Plot: ' . substr($f['plot'], 0, 80) . '...' : '';
+            $director = !empty($f['director']) ? ' | Dir: ' . $f['director'] : '';
+            
             $prompt .= sprintf(
-                "%d.[%s]%s(%s)★%s|%s\n",
-                $i+1,
+                "%d. ID:%s | %s (%s) ★%s | %s%s%s\n",
+                $i + 1,
                 $f['imdb_id'],
-                substr($f['title'], 0, 18),
+                $f['title'],
                 $year,
                 $rating,
-                substr($genre, 0, 15)
+                $genre,
+                $director,
+                $plot
             );
         }
 
-        $prompt .= "\n💬 CONTOH RESPONS YANG BAIK:\n\n";
+        $prompt .= "\n🎯 EXAMPLES OF INTELLIGENT RESPONSES:\n\n";
         
-        $prompt .= "❌ SALAH (Langsung bombardir):\n";
-        $prompt .= "\"Ini ada banyak film bagus: [FILM:tt1][FILM:tt2][FILM:tt3][FILM:tt4][FILM:tt5]\"\n\n";
+        $prompt .= "Example 1 - Description Match:\n";
+        $prompt .= "User: 'kartun koboi, punya kawan astronot'\n";
+        $prompt .= "You: 'Oh! Itu Toy Story ya! Cerita tentang Woody si koboi dan Buzz Lightyear si astronot mainan. Film klasik Pixar yang seru banget! [FILM:tt0114709]'\n\n";
         
-        $prompt .= "✅ BENAR (Natural & bertahap):\n";
-        $prompt .= "User: \"pengen film action\"\n";
-        $prompt .= "Kamu: \"Action ya! Mau yang gimana? Ada yang penuh ledakan kayak Fast & Furious, atau yang taktis kayak Mission Impossible?\"\n\n";
+        $prompt .= "Example 2 - Clarification Needed:\n";
+        $prompt .= "User: 'film yang seru'\n";
+        $prompt .= "You: 'Seru itu luas ya! Maksudnya action yang banyak ledakan, thriller yang bikin tegang, atau comedy yang bikin ketawa? Biar aku cariin yang pas.'\n\n";
         
-        $prompt .= "User: \"yang taktis\"\n";
-        $prompt .= "Kamu: \"Oke! Coba dua ini deh, keduanya seru banget - film pertama punya stunts gila, yang kedua lebih ke spy thriller: [FILM:tt0120755][FILM:tt0258463]\"\n\n";
+        $prompt .= "Example 3 - Not Found:\n";
+        $prompt .= "User: 'film tentang dinosaurus merah'\n";
+        $prompt .= "You: 'Hmm, aku cari di database tapi belum nemu film tentang dinosaurus merah spesifik. Mungkin maksudnya Jurassic Park atau film dinosaurus lain? Atau ada detail tambahan?'\n\n";
         
-        $prompt .= "User: \"ada yang lain?\"\n";
-        $prompt .= "Kamu: \"Ada! Kalau suka yang tadi, ini juga cocok - film heist yang cerdas: [FILM:tt0468569] Atau mau genre lain?\"\n\n";
+        $prompt .= "⚠️ CRITICAL RULES:\n";
+        $prompt .= "1. ALWAYS complete your sentences (end with . ! ?)\n";
+        $prompt .= "2. REASON first, then recommend\n";
+        $prompt .= "3. If unsure, ASK for clarification (but be specific)\n";
+        $prompt .= "4. Match descriptions to plot/characters in database\n";
+        $prompt .= "5. Be conversational, not robotic\n\n";
         
-        $prompt .= "---\n";
-        $prompt .= "FORMAT: Jawaban natural (1-2 kalimat) + max 2-3 [FILM:imdb_id]\n";
+        $prompt .= "NOW RESPOND TO USER:\n";
         
         return $prompt;
     }
 
     /**
-     * Fallback Response Logic
+     * Fallback Logic
      */
     private function getFallbackResponse($message, $filmContext, $recommendedBefore = [])
     {
-        // 🔍 DEBUG LOG
-        Log::warning('🔄 USING FALLBACK RESPONSE', [
-            'reason' => 'Gemini unavailable or rate limited',
-            'available_films' => count($filmContext),
-            'excluded_films' => count($recommendedBefore)
-        ]);
-
-        // 1. Filter film yang belum direkomendasikan
+        // Filter used films
         $availableFilms = array_filter($filmContext, function($film) use ($recommendedBefore) {
             return !in_array($film['imdb_id'], $recommendedBefore);
         });
 
-        if (empty($availableFilms)) {
-            $availableFilms = $filmContext;
-        }
+        if (empty($availableFilms)) $availableFilms = $filmContext;
 
         $message = strtolower($message);
         $recommendations = [];
@@ -390,8 +378,8 @@ class GeminiService
             'sedih' => ['genre' => ['Drama'], 'limit' => 3],
             'senang' => ['genre' => ['Comedy', 'Animation'], 'limit' => 3],
             'tegang' => ['genre' => ['Thriller', 'Horror'], 'limit' => 3],
+            'action' => ['genre' => ['Action', 'Adventure'], 'limit' => 3],
             'romantis' => ['genre' => ['Romance'], 'limit' => 3],
-            'action' => ['genre' => ['Action'], 'limit' => 3],
             'acak' => ['random' => true, 'limit' => 3]
         ];
 
@@ -418,7 +406,6 @@ class GeminiService
             }
         }
 
-        // Default: Top Rated
         if (empty($recommendations)) {
             $sorted = $availableFilms;
             usort($sorted, fn($a, $b) => floatval($b['rating'] ?? 0) <=> floatval($a['rating'] ?? 0));
@@ -426,20 +413,15 @@ class GeminiService
         }
 
         $responses = [
-            "Jaringan AI lagi sibuk, tapi nih aku pilihin manual yang bagus:",
-            "Cek film-film keren ini deh:",
-            "Rekomendasi spesial buat kamu:"
+            "Lagi agak sibuk nih jaringannya, tapi coba cek film keren ini:",
+            "Ini rekomendasi spesial pilihan manual buat kamu:",
+            "Kayaknya kamu bakal suka film-film ini:"
         ];
         
         $response = $responses[array_rand($responses)] . "\n\n";
         foreach ($recommendations as $film) {
             $response .= "[FILM:" . $film['imdb_id'] . "]";
         }
-
-        Log::info('✅ FALLBACK RESPONSE BUILT', [
-            'recommended_count' => count($recommendations),
-            'recommended_ids' => array_map(fn($f) => $f['imdb_id'], $recommendations)
-        ]);
         
         return $response;
     }
@@ -470,7 +452,6 @@ class GeminiService
         $extractedIds = $this->extractFilmIds($response);
         $validIds = array_filter($extractedIds, fn($id) => in_array($id, $validImdbIds));
 
-        // Hapus ID invalid dari teks response
         foreach ($extractedIds as $id) {
             if (!in_array($id, $validIds)) {
                 $response = str_replace("[FILM:$id]", "", $response);

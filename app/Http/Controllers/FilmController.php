@@ -2,34 +2,38 @@
 
 namespace App\Http\Controllers;
 
+use Http;
 use Illuminate\Http\Request;
 use App\Services\FusekiService;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Str;
-
+use App\Services\GeminiService;
 class FilmController extends Controller
 {
     protected $fuseki;
     protected $dbpedia;
-
-    public function __construct(FusekiService $fuseki, \App\Services\DBpediaService $dbpedia)
+    protected $gemini;
+    public function __construct(FusekiService $fuseki, \App\Services\DBpediaService $dbpedia, GeminiService $gemini)
     {
         $this->fuseki = $fuseki;
         $this->dbpedia = $dbpedia;
+        $this->gemini = $gemini;
     }
 
-    private function cleanNameFromUri($uri) {
+    private function cleanNameFromUri($uri)
+    {
         if (!is_string($uri)) {
             return 'Error:BukanString';
         }
-        $fragment = parse_url($uri, PHP_URL_FRAGMENT); 
+        $fragment = parse_url($uri, PHP_URL_FRAGMENT);
         if ($fragment) {
             return str_replace('_', ' ', urldecode($fragment));
         }
         return str_replace('_', ' ', basename(urldecode($uri)));
     }
 
-    private function cleanCurrencyToFloat($currencyString) {
+    private function cleanCurrencyToFloat($currencyString)
+    {
         if (!is_string($currencyString) || empty($currencyString) || $currencyString === 'N/A') {
             return 0.0;
         }
@@ -40,12 +44,12 @@ class FilmController extends Controller
     public function search(Request $request)
     {
         $searchQuery = $request->input('query');
-        
+
         if ($searchQuery && preg_match('/^tt\d+$/i', trim($searchQuery))) {
             $imdbId = strtolower(trim($searchQuery));
             return redirect()->route('film.show', ['imdb_id' => $imdbId]);
         }
-        
+
         $letter = $request->input('letter');
         $year = $request->input('year');
         $type = $request->input('type');
@@ -61,18 +65,18 @@ class FilmController extends Controller
             ?film fm:type ?typeUri .
             BIND(STRAFTER(STR(?typeUri), '#') AS ?type)
         ";
-        
+
         if ($searchQuery) {
             $cleanSearchQuery = strtolower($searchQuery);
             $cleanSearchQuery = str_replace(
-                [' ', '-', ':', '_', '4', '1', '0', '3'], 
-                ['', '', '', '', 'a', 'i', 'o', 'e'], 
+                [' ', '-', ':', '_', '4', '1', '0', '3'],
+                ['', '', '', '', 'a', 'i', 'o', 'e'],
                 $cleanSearchQuery
             );
 
             $escapedSearchQuery = addslashes($searchQuery);
             $escapedCleanSearchQuery = addslashes($cleanSearchQuery);
-            
+
             $isImdbSearch = preg_match('/tt\d+/i', $searchQuery);
 
             $filterClause .= "
@@ -131,8 +135,8 @@ class FilmController extends Controller
                     CONTAINS(?cleanActor, '{$escapedCleanSearchQuery}') ||
                     CONTAINS(?cleanDirector, '{$escapedCleanSearchQuery}') ||
                     CONTAINS(?cleanWriter, '{$escapedCleanSearchQuery}') ||
-                    CONTAINS(?country, LCASE('{$escapedSearchQuery}'))" . 
-                    ($isImdbSearch ? " || CONTAINS(LCASE(STR(?film)), LCASE('{$escapedSearchQuery}'))" : "") . "
+                    CONTAINS(?country, LCASE('{$escapedSearchQuery}'))" .
+                ($isImdbSearch ? " || CONTAINS(LCASE(STR(?film)), LCASE('{$escapedSearchQuery}'))" : "") . "
                 )
             ";
         }
@@ -141,22 +145,22 @@ class FilmController extends Controller
             $escapedLetter = addslashes($letter);
             $filterClause .= " FILTER (STRSTARTS(LCASE(?title), LCASE('{$escapedLetter}'))) \n";
         }
-        
+
         if ($year) {
             $escapedYear = addslashes($year);
             $filterClause .= " ?film fm:year ?yearF . FILTER (STR(?yearF) = '{$escapedYear}') \n";
         }
-        
+
         if ($type) {
             $escapedType = addslashes($type);
             $filterClause .= " FILTER (?type = '{$escapedType}') \n";
         }
-        
+
         if ($rated) {
             $escapedRated = addslashes($rated);
             $filterClause .= " ?film fm:rated ?ratedF . FILTER (?ratedF = '{$escapedRated}') \n";
         }
-        
+
         if ($genre) {
             $escapedGenre = addslashes($genre);
             $filterClause .= " ?film fm:genre ?genreF . FILTER (LCASE(?genreF) = LCASE('{$escapedGenre}')) \n";
@@ -164,7 +168,7 @@ class FilmController extends Controller
 
         $countQuery = "SELECT (COUNT(DISTINCT ?film) as ?total) WHERE { {$filterClause} }";
         $total = $this->fuseki->queryValue($countQuery);
-   
+
         $sparqlSelect = "
             SELECT DISTINCT ?film ?title ?year ?rated ?poster ?plot ?rating ?type
                 (GROUP_CONCAT(DISTINCT ?actorUri; separator='||') AS ?actors)
@@ -183,43 +187,43 @@ class FilmController extends Controller
         $finalOrderBy = "";
 
         switch ($sort) {
-            case 'rating_desc': 
+            case 'rating_desc':
                 $subQuery = str_replace("?title ?type", "?title ?type ?ratingB", $subQuery);
                 $subQuery = str_replace("WHERE {", "WHERE { OPTIONAL { ?film fm:imdbRating ?ratingB } ", $subQuery);
-                $orderBy = "ORDER BY DESC(IF(COALESCE(?ratingB, '0.0') = 'N/A', 0.0, xsd:float(COALESCE(?ratingB, '0.0'))))"; 
+                $orderBy = "ORDER BY DESC(IF(COALESCE(?ratingB, '0.0') = 'N/A', 0.0, xsd:float(COALESCE(?ratingB, '0.0'))))";
                 $finalOrderBy = "ORDER BY DESC(?rating)";
                 break;
-            case 'rating_asc': 
+            case 'rating_asc':
                 $subQuery = str_replace("?title ?type", "?title ?type ?ratingB", $subQuery);
                 $subQuery = str_replace("WHERE {", "WHERE { OPTIONAL { ?film fm:imdbRating ?ratingB } ", $subQuery);
-                $orderBy = "ORDER BY ASC(IF(COALESCE(?ratingB, '0.0') = 'N/A', 0.0, xsd:float(COALESCE(?ratingB, '0.0'))))"; 
+                $orderBy = "ORDER BY ASC(IF(COALESCE(?ratingB, '0.0') = 'N/A', 0.0, xsd:float(COALESCE(?ratingB, '0.0'))))";
                 $finalOrderBy = "ORDER BY ASC(?rating)";
                 break;
-            case 'year_desc': 
+            case 'year_desc':
                 $subQuery = str_replace("?title ?type", "?title ?type ?yearB", $subQuery);
                 $subQuery = str_replace("WHERE {", "WHERE { OPTIONAL { ?film fm:year ?yearB } ", $subQuery);
-                $orderBy = "ORDER BY DESC(?yearB)"; 
+                $orderBy = "ORDER BY DESC(?yearB)";
                 $finalOrderBy = "ORDER BY DESC(?year)";
                 break;
-            case 'year_asc': 
+            case 'year_asc':
                 $subQuery = str_replace("?title ?type", "?title ?type ?yearB", $subQuery);
                 $subQuery = str_replace("WHERE {", "WHERE { OPTIONAL { ?film fm:year ?yearB } ", $subQuery);
-                $orderBy = "ORDER BY ?yearB"; 
+                $orderBy = "ORDER BY ?yearB";
                 $finalOrderBy = "ORDER BY ASC(?year)";
                 break;
-            case 'title_desc': 
-                $orderBy = "ORDER BY DESC(?title)"; 
+            case 'title_desc':
+                $orderBy = "ORDER BY DESC(?title)";
                 $finalOrderBy = "ORDER BY DESC(?title)";
                 break;
-            case 'title_asc': 
-            default: 
-                $orderBy = "ORDER BY ?title"; 
+            case 'title_asc':
+            default:
+                $orderBy = "ORDER BY ?title";
                 $finalOrderBy = "ORDER BY ?title";
                 break;
         }
-        
+
         $subQuery = str_replace('%ORDER_BY_placeholder%', $orderBy, $subQuery);
-        
+
         $dataQuery = "
             {$sparqlSelect} 
             WHERE {
@@ -247,16 +251,17 @@ class FilmController extends Controller
 
         $results = $this->fuseki->query($dataQuery);
 
-        $cleanName = function($uri) {
-            if (!is_string($uri)) return '';
-            $fragment = parse_url($uri, PHP_URL_FRAGMENT); 
+        $cleanName = function ($uri) {
+            if (!is_string($uri))
+                return '';
+            $fragment = parse_url($uri, PHP_URL_FRAGMENT);
             if ($fragment) {
                 return str_replace('_', ' ', urldecode($fragment));
             }
             return str_replace('_', ' ', basename(urldecode($uri)));
         };
 
-        $processedResults = array_map(function($film) use ($cleanName) {
+        $processedResults = array_map(function ($film) use ($cleanName) {
             if (isset($film['actors'])) {
                 if (is_string($film['actors'])) {
                     $film['actors_list'] = array_map($cleanName, explode('||', $film['actors']));
@@ -266,7 +271,7 @@ class FilmController extends Controller
             } else {
                 $film['actors_list'] = [];
             }
-        
+
             if (isset($film['directors'])) {
                 if (is_string($film['directors'])) {
                     $film['directors_list'] = array_map($cleanName, explode('||', $film['directors']));
@@ -276,10 +281,10 @@ class FilmController extends Controller
             } else {
                 $film['directors_list'] = [];
             }
-            
+
             return $film;
         }, $results);
-        
+
         $films = new LengthAwarePaginator(
             $processedResults,
             $total,
@@ -289,11 +294,11 @@ class FilmController extends Controller
         );
 
         $years_query = $this->fuseki->query("SELECT DISTINCT ?year WHERE { ?s fm:title ?title ; fm:year ?year . } ORDER BY ?year");
-        
+
         $types = $this->fuseki->query("SELECT DISTINCT (STRAFTER(STR(?typeUri), '#') AS ?type) WHERE { ?s fm:title ?title ; fm:type ?typeUri . } ORDER BY ?type");
-        
+
         $ratings_query = $this->fuseki->query("SELECT DISTINCT ?rated WHERE { ?s fm:title ?title ; fm:rated ?rated . } ORDER BY ?rated");
-        
+
         $genres_query = $this->fuseki->query("SELECT DISTINCT ?genre WHERE { ?s fm:title ?title ; fm:genre ?genre . } ORDER BY ?genre");
 
         $topPicks = $this->fuseki->query("
@@ -313,7 +318,7 @@ class FilmController extends Controller
             ORDER BY DESC(?rating) 
             LIMIT 10
         ");
-        
+
         $featuredFilmIds = $this->fuseki->query("
             SELECT DISTINCT ?film 
             WHERE {
@@ -324,8 +329,8 @@ class FilmController extends Controller
                 FILTER(BOUND(?plot) && BOUND(?poster) && STRLEN(?plot) > 10)
             }
         ");
-      
-        
+
+
         $featuredFilmList = array_map(fn($r) => $r['film'], $featuredFilmIds);
         shuffle($featuredFilmList);
         $featuredFilms = [];
@@ -341,12 +346,12 @@ class FilmController extends Controller
                 }
             ");
         }
-        
-        $year_list = array_map(fn($r) => (string)$r['year'], $years_query);
+
+        $year_list = array_map(fn($r) => (string) $r['year'], $years_query);
         $year_list = array_filter($year_list, fn($y) => $y !== 'N/A' && $y !== '');
         $year_list = array_unique($year_list);
         rsort($year_list);
-        
+
         $rating_list = array_map(fn($r) => $r['rated'], $ratings_query);
         $rating_list = array_filter($rating_list, fn($r) => $r !== 'N/A' && $r !== '');
         $rating_list = array_unique($rating_list);
@@ -356,7 +361,7 @@ class FilmController extends Controller
         $genre_list = array_filter($genre_list_raw, fn($g) => !empty(trim($g)));
         $genre_list = array_unique($genre_list);
         sort($genre_list);
-        
+
         return view('search', [
             'films' => $films,
             'topPicks' => $topPicks,
@@ -377,7 +382,7 @@ class FilmController extends Controller
         }
 
         $filmUri = "https://www.imdb.com/title/{$imdb_id}/";
-        
+
         $sparqlSelect = "
             SELECT 
                 ?film ?title ?year ?rated ?poster ?plot ?rating ?type
@@ -389,7 +394,7 @@ class FilmController extends Controller
                 (GROUP_CONCAT(DISTINCT ?languageB; separator=', ') AS ?languages)
                 (GROUP_CONCAT(DISTINCT ?countryB; separator=', ') AS ?countries)
         ";
-        
+
         $sparqlWhere = "
             WHERE {
                 BIND(<{$filmUri}> AS ?film)
@@ -441,30 +446,31 @@ class FilmController extends Controller
                 ?film ?title ?year ?rated ?poster ?plot ?rating ?type
                 ?released ?runtime ?awards ?metascore ?imdbVotes ?boxOffice
         ";
-        
+
         $results = $this->fuseki->query($query);
-        
+
         if (empty($results)) {
             abort(404);
         }
 
         $film = $results[0];
-        
-        $film['imdb_id'] = $imdb_id; 
-        
-        $cleanName = function($uri) {
-            if (!is_string($uri)) return '';
-            $fragment = parse_url($uri, PHP_URL_FRAGMENT); 
+
+        $film['imdb_id'] = $imdb_id;
+
+        $cleanName = function ($uri) {
+            if (!is_string($uri))
+                return '';
+            $fragment = parse_url($uri, PHP_URL_FRAGMENT);
             if ($fragment) {
                 return str_replace('_', ' ', urldecode($fragment));
             }
             return str_replace('_', ' ', basename(urldecode($uri)));
         };
-        
+
         if (isset($film['actors'])) {
-            $film['actors_list'] = is_string($film['actors']) ? 
+            $film['actors_list'] = is_string($film['actors']) ?
                 array_map($cleanName, explode('||', $film['actors'])) :
-                array_map($cleanName, (array)$film['actors']);
+                array_map($cleanName, (array) $film['actors']);
         } else {
             $film['actors_list'] = [];
         }
@@ -472,7 +478,7 @@ class FilmController extends Controller
         if (isset($film['directors'])) {
             $film['directors_list'] = is_string($film['directors']) ?
                 array_map($cleanName, explode('||', $film['directors'])) :
-                array_map($cleanName, (array)$film['directors']);
+                array_map($cleanName, (array) $film['directors']);
         } else {
             $film['directors_list'] = [];
         }
@@ -480,7 +486,7 @@ class FilmController extends Controller
         if (isset($film['writers'])) {
             $film['writers_list'] = is_string($film['writers']) ?
                 array_map($cleanName, explode('||', $film['writers'])) :
-                array_map($cleanName, (array)$film['writers']);
+                array_map($cleanName, (array) $film['writers']);
         } else {
             $film['writers_list'] = [];
         }
@@ -488,34 +494,34 @@ class FilmController extends Controller
         $dbpediaData = $this->dbpedia->getFilmInfo($film['title'], $film['year']);
         $film['dbpedia'] = $dbpediaData;
 
-        $boxOfficeString = $film['boxOffice'] ?? 'N/A'; 
-        $budgetString = $film['dbpedia']['budget'] ?? 'N/A'; 
+        $boxOfficeString = $film['boxOffice'] ?? 'N/A';
+        $budgetString = $film['dbpedia']['budget'] ?? 'N/A';
 
         $boxOffice = $this->cleanCurrencyToFloat($boxOfficeString);
         $budget = $this->cleanCurrencyToFloat($budgetString);
 
         $profit = 0.0;
         $profitStatus = 'Data N/A';
-        $profitClass = 'text-muted'; 
-        
+        $profitClass = 'text-muted';
+
         if ($boxOffice > 0 && $budget > 0) {
             $profit = $boxOffice - $budget;
             $formattedProfit = '$' . number_format(abs($profit), 0, '.', ',');
 
             if ($profit > 0) {
                 $profitStatus = "Untung ({$formattedProfit})";
-                $profitClass = 'text-green-400'; 
+                $profitClass = 'text-green-400';
             } elseif ($profit < 0) {
                 $profitStatus = "Rugi ({$formattedProfit})";
-                $profitClass = 'text-red-400'; 
+                $profitClass = 'text-red-400';
             } else {
                 $profitStatus = "Break Even";
                 $profitClass = 'text-blue-400';
             }
-            
+
         } elseif ($boxOffice > 0 && $budget == 0) {
-             $profitStatus = "Anggaran (Budget) tidak ditemukan di DBpedia.";
-             $profitClass = 'text-yellow-400';
+            $profitStatus = "Anggaran (Budget) tidak ditemukan di DBpedia.";
+            $profitClass = 'text-yellow-400';
         } elseif ($boxOffice == 0 && $budget > 0) {
             $profitStatus = "Pemasukan (Box Office) tidak ditemukan di Fuseki.";
             $profitClass = 'text-yellow-400';
@@ -529,10 +535,10 @@ class FilmController extends Controller
 
         $nodes = [];
         $edges = [];
-        
+
         $nodes[] = [
-            'id' => 0, 
-            'label' => Str::limit($film['title'], 20), 
+            'id' => 0,
+            'label' => Str::limit($film['title'], 20),
             'group' => 'mainFilm',
             'title' => $film['title']
         ];
@@ -543,13 +549,13 @@ class FilmController extends Controller
             foreach (array_slice($film['directors_list'], 0, 3) as $director) {
                 $id = $nodeIdCounter++;
                 $nodes[] = [
-                    'id' => $id, 
-                    'label' => $director, 
+                    'id' => $id,
+                    'label' => $director,
                     'group' => 'director'
                 ];
                 $edges[] = [
-                    'from' => $id, 
-                    'to' => 0, 
+                    'from' => $id,
+                    'to' => 0,
                     'label' => 'Sutradara'
                 ];
             }
@@ -557,23 +563,23 @@ class FilmController extends Controller
 
         if (!empty($film['actors_list'])) {
             $topActors = array_slice($film['actors_list'], 0, 5);
-            
+
             foreach ($topActors as $index => $actor) {
                 $id = $nodeIdCounter++;
                 $nodes[] = [
-                    'id' => $id, 
-                    'label' => $actor, 
+                    'id' => $id,
+                    'label' => $actor,
                     'group' => 'actor'
                 ];
                 $edges[] = [
-                    'from' => $id, 
-                    'to' => 0, 
+                    'from' => $id,
+                    'to' => 0,
                     'label' => 'Pemeran'
                 ];
 
                 if ($index === 0) {
-                    $cleanActorName = str_replace("'", "\\'", $actor); 
-                    
+                    $cleanActorName = str_replace("'", "\\'", $actor);
+
                     $relatedQuery = "
                         SELECT DISTINCT ?title 
                         WHERE {
@@ -584,9 +590,9 @@ class FilmController extends Controller
                             FILTER(?title != \"{$film['title']}\") 
                         } LIMIT 2
                     ";
-                    
+
                     $relatedFilms = $this->fuseki->query($relatedQuery);
-                    
+
                     foreach ($relatedFilms as $rFilm) {
                         $relatedId = $nodeIdCounter++;
                         $nodes[] = [
@@ -622,81 +628,143 @@ class FilmController extends Controller
 
     public function recommendChat(Request $request)
     {
-        $inputMood = $request->input('message'); 
+        logger()->info('Chatbot Request:', $request->all());
 
-        $moodMap = [
-            'sedih'    => [
-                'genres' => ['Comedy', 'Animation', 'Musical', 'Family'],
-                'msg'    => "Jangan sedih dong! Nih, aku pilihkan film lucu buat naikin mood kamu:"
-            ],
-            'senang'   => [
-                'genres' => ['Action', 'Adventure', 'Sci-Fi'],
-                'msg'    => "Lagi happy ya! Coba tonton film seru ini biar makin semangat:"
-            ],
-            'bosan'    => [
-                'genres' => ['Thriller', 'Mystery', 'Horror', 'Crime'],
-                'msg'    => "Bosan? Film-film ini dijamin bikin penasaran dan deg-degan:"
-            ],
-            'takut'    => [
-                'genres' => ['Romance', 'Comedy'],
-                'msg'    => "Tenang, tonton yang santai dan manis aja biar rileks:"
-            ],
-            'romantis' => [
-                'genres' => ['Romance', 'Drama'],
-                'msg'    => "Cieee.. Ini film romantis pilihan buat momen manis kamu:"
-            ],
-            'acak'     => [
-                'genres' => ['Action', 'Comedy', 'Drama', 'Horror', 'Sci-Fi'],
-                'msg'    => "Oke, ini film acak spesial buat kamu yang suka kejutan:"
-            ],
-        ];
+        try {
+            $inputMessage = $request->input('message');
+            logger()->info('User Input:', ['message' => $inputMessage]);
 
-        if (!isset($moodMap[$inputMood])) {
+            // Panggil Gemini Service
+            $aiAnalysis = $this->gemini->extractIntent($inputMessage);
+            logger()->info('AI Analysis:', $aiAnalysis);
+
+            // Fallback jika AI gagal/error
+            if (!$aiAnalysis) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => "Maaf, otak AI-ku lagi error. Coba cari manual ya!",
+                    'films' => []
+                ]);
+            }
+
+            // Jika cuma sapaan
+            if ($aiAnalysis['intent'] === 'GREETING') {
+                return response()->json([
+                    'status' => 'success',
+                    'message' => $aiAnalysis['reply_text'] ?? "Halo! Mau cari film apa?",
+                    'films' => []
+                ]);
+            }
+
+            // Bangun Query SPARQL berdasarkan parameter dari AI
+            $params = $aiAnalysis['params'];
+            $sparqlQuery = $this->buildAiSparqlQuery($params);
+            logger()->info('SPARQL Query:', ['query' => $sparqlQuery]);
+
+            // Eksekusi ke Fuseki
+            $results = $this->fuseki->query($sparqlQuery);
+            logger()->info('Fuseki Results:', $results);
+
+            if (empty($results)) {
+                return response()->json([
+                    'status' => 'success',
+                    'message' => "Waduh, aku gak nemu film yang cocok dengan kriteria itu di databaseku.",
+                    'films' => []
+                ]);
+            }
+
+            // Format Hasil
+            $films = array_map(function ($film) {
+                if (!isset($film['film']))
+                    return null;
+                $film['imdb_id'] = last(explode('/', rtrim($film['film'], '/')));
+                return $film;
+            }, $results);
+
+            return response()->json([
+                'status' => 'success',
+                'message' => "Ini beberapa film yang aku temukan untukmu:",
+                'films' => array_slice(array_filter($films), 0, 5)
+            ]);
+
+        } catch (\Exception $e) {
+            logger()->error("Chatbot Error: " . $e->getMessage());
             return response()->json([
                 'status' => 'error',
-                'message' => 'Waduh, aku bingung. Coba pilih tombol mood yang ada ya!',
+                'message' => "Terjadi kesalahan sistem.",
                 'films' => []
             ]);
         }
-
-        $selected = $moodMap[$inputMood];
-
-        $filters = array_map(fn($g) => "CONTAINS(LCASE(?genre), LCASE('$g'))", $selected['genres']);
-        $filterString = implode(' || ', $filters);
-
-        $sparqlQuery = "
-            SELECT DISTINCT ?film ?title ?poster ?rating
-            WHERE {
-                ?film fm:title ?title ; 
-                    fm:genre ?genre ; 
-                    fm:poster ?poster .
-                OPTIONAL { ?film fm:imdbRating ?ratingB }
-                BIND(COALESCE(?ratingB, '0.0') AS ?rating)
-                
-                FILTER ($filterString)
-            }
-            LIMIT 50
-        ";
-
-        $results = $this->fuseki->query($sparqlQuery);
-
-        if (!empty($results)) {
-            shuffle($results);
-            $finalFilms = array_slice($results, 0, 3);
-            
-            $finalFilms = array_map(function($film) {
-                $film['imdb_id'] = last(explode('/', rtrim($film['film'], '/')));
-                return $film;
-            }, $finalFilms);
-        } else {
-            $finalFilms = [];
-        }
-
-        return response()->json([
-            'status' => 'success',
-            'message' => $selected['msg'],
-            'films' => $finalFilms
-        ]);
     }
 
+    // Fungsi Query Builder yang lebih fleksibel menerima banyak parameter
+    private function buildSparqlQuery($params)
+    {
+        $filters = [];
+
+        if (!empty($params['genre'])) {
+            $val = addslashes($params['genre']);
+            $filters[] = "?film fm:genre ?genre . FILTER(CONTAINS(LCASE(?genre), LCASE('$val')))";
+        }
+        if (!empty($params['actor'])) {
+            $val = addslashes($params['actor']);
+            $filters[] = "?film fm:actor ?actor . BIND(STRAFTER(STR(?actor), '#') AS ?actorName) FILTER(CONTAINS(LCASE(?actorName), LCASE('$val')))";
+        }
+        if (!empty($params['director'])) {
+            $val = addslashes($params['director']);
+            $filters[] = "?film fm:director ?director . BIND(STRAFTER(STR(?director), '#') AS ?dirName) FILTER(CONTAINS(LCASE(?dirName), LCASE('$val')))";
+        }
+        if (!empty($params['title'])) {
+            $val = addslashes($params['title']);
+            $filters[] = "?film fm:title ?title . FILTER(CONTAINS(LCASE(?title), LCASE('$val')))";
+        }
+
+        // Jika tidak ada filter, gunakan fallback
+        if (empty($filters)) {
+            return "SELECT ?film ?title ?poster ?rating WHERE { ?film fm:title ?title } LIMIT 5";
+        }
+
+        $filterString = implode("\n", $filters);
+
+        return "
+        SELECT DISTINCT ?film ?title ?poster ?rating
+        WHERE {
+            ?film fm:title ?title .
+            $filterString
+            OPTIONAL { ?film fm:poster ?posterB }
+            OPTIONAL { ?film fm:imdbRating ?ratingB }
+            BIND(COALESCE(?posterB, 'https://placehold.co/100x150?text=No+Poster') AS ?poster)
+            BIND(COALESCE(?ratingB, 'N/A') AS ?rating)
+        } LIMIT 5
+    ";
+    }
+    private function detectIntent($inputMessage)
+    {
+        $inputMessage = strtolower($inputMessage);
+
+        // Cek Greeting
+        $greetings = ["halo", "hi", "hai", "hello", "selamat pagi", "selamat siang", "selamat malam"];
+        if (in_array($inputMessage, $greetings)) {
+            return ['intent' => 'GREETING', 'value' => $inputMessage];
+        }
+
+        // Cek Genre
+        $genres = [
+            "romantis" => "Romance",
+            "horor" => "Horror",
+            "komedi" => "Comedy",
+            "aksi" => "Action",
+            "drama" => "Drama",
+            "sci-fi" => "Sci-Fi",
+            "petualangan" => "Adventure"
+        ];
+        foreach ($genres as $key => $value) {
+            if (strpos($inputMessage, $key) !== false) {
+                return ['intent' => 'GENRE', 'value' => $value];
+            }
+        }
+
+        // Default ke General Search
+        return ['intent' => 'GENERAL_SEARCH', 'value' => $inputMessage];
+    }
 }

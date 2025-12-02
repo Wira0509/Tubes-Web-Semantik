@@ -491,47 +491,36 @@ class FilmController extends Controller
             $film['writers_list'] = [];
         }
 
-        $dbpediaData = $this->dbpedia->getFilmInfo($film['title'], $film['year']);
+        // Determine content type (movie or series)
+        $contentType = isset($film['type']) && strtolower($film['type']) === 'series' ? 'series' : 'movie';
+        
+        $dbpediaData = $this->dbpedia->getFilmInfo($film['title'], $film['year'], $contentType);
         $film['dbpedia'] = $dbpediaData;
 
-        $boxOfficeString = $film['boxOffice'] ?? 'N/A';
-        $budgetString = $film['dbpedia']['budget'] ?? 'N/A';
-
-        $boxOffice = $this->cleanCurrencyToFloat($boxOfficeString);
-        $budget = $this->cleanCurrencyToFloat($budgetString);
-
-        $profit = 0.0;
-        $profitStatus = 'Data N/A';
-        $profitClass = 'text-muted';
-
-        if ($boxOffice > 0 && $budget > 0) {
-            $profit = $boxOffice - $budget;
-            $formattedProfit = '$' . number_format(abs($profit), 0, '.', ',');
-
-            if ($profit > 0) {
-                $profitStatus = "Untung ({$formattedProfit})";
-                $profitClass = 'text-green-400';
-            } elseif ($profit < 0) {
-                $profitStatus = "Rugi ({$formattedProfit})";
-                $profitClass = 'text-red-400';
-            } else {
-                $profitStatus = "Break Even";
-                $profitClass = 'text-blue-400';
+        // Override boxOffice dengan data dari DBpedia jika tersedia
+        if (!empty($dbpediaData['boxOffice'])) {
+            $film['boxOffice'] = $dbpediaData['boxOffice'];
+        } elseif (!empty($film['boxOffice']) && $film['boxOffice'] !== 'N/A') {
+            // Format box office dari RDF jika belum ter-format
+            $boxOfficeValue = $film['boxOffice'];
+            $numericValue = preg_replace('/[^0-9.]/', '', $boxOfficeValue);
+            if (is_numeric($numericValue) && floatval($numericValue) > 0) {
+                $film['boxOffice'] = '$' . number_format(floatval($numericValue), 0, '.', ',');
             }
-
-        } elseif ($boxOffice > 0 && $budget == 0) {
-            $profitStatus = "Anggaran (Budget) tidak ditemukan di DBpedia.";
-            $profitClass = 'text-yellow-400';
-        } elseif ($boxOffice == 0 && $budget > 0) {
-            $profitStatus = "Pemasukan (Box Office) tidak ditemukan di Fuseki.";
-            $profitClass = 'text-yellow-400';
-        } else {
-            $profitStatus = 'Anggaran dan Pemasukan N/A';
-            $profitClass = 'text-gray-400';
         }
 
-        $film['profit_status'] = $profitStatus;
-        $film['profit_class'] = $profitClass;
+        // Add Wikipedia URL from DBpedia if available, otherwise create fallback
+        if (!empty($dbpediaData['wikipediaUrl'])) {
+            $film['wikipediaUrl'] = $dbpediaData['wikipediaUrl'];
+        } else {
+            // Fallback: try adding appropriate suffix based on type
+            $cleanTitle = str_replace(' ', '_', $film['title']);
+            if ($contentType === 'series') {
+                $film['wikipediaUrl'] = "https://en.wikipedia.org/wiki/{$cleanTitle}_(TV_series)";
+            } else {
+                $film['wikipediaUrl'] = "https://en.wikipedia.org/wiki/{$cleanTitle}_(film)";
+            }
+        }
 
         $nodes = [];
         $edges = [];

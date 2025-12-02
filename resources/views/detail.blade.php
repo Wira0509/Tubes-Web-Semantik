@@ -38,12 +38,12 @@
     <meta name="twitter:image" content="{{ $film['poster'] }}">
 
     @php
-        $wikipediaTitle = str_replace(' ', '_', $film['title']);
         $imdbId = last(explode('/', rtrim($film['film'], '/')));
+        $wikipediaUrl = $film['wikipediaUrl'] ?? 'https://en.wikipedia.org/wiki/' . str_replace(' ', '_', $film['title']);
     @endphp
-    <meta property="og:see_also" content="https://en.wikipedia.org/wiki/{{ $wikipediaTitle }}">
+    <meta property="og:see_also" content="{{ $wikipediaUrl }}">
     <meta property="og:see_also" content="https://www.imdb.com/title/{{ $imdbId }}/">
-    <link rel="alternate" type="text/html" href="https://en.wikipedia.org/wiki/{{ $wikipediaTitle }}"
+    <link rel="alternate" type="text/html" href="{{ $wikipediaUrl }}"
         title="Wikipedia Article">
 
     <script src="https://cdn.tailwindcss.com"></script>
@@ -165,11 +165,8 @@
                     </div>
                 @endif
 
-                @php
-                    $wikipediaTitle = str_replace(' ', '_', $film['title']);
-                @endphp
                 <div class="mt-6">
-                    <a href="https://en.wikipedia.org/wiki/{{ $wikipediaTitle }}" target="_blank"
+                    <a href="{{ $film['wikipediaUrl'] ?? 'https://en.wikipedia.org/wiki/' . str_replace(' ', '_', $film['title']) }}" target="_blank"
                         class="flex items-center justify-center gap-2 w-full px-4 py-3 bg-gray-700 text-white font-semibold rounded-lg hover:bg-gray-600 transition-colors border border-gray-600">
                         <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                             <path
@@ -285,9 +282,9 @@
                                 </div>
                             @endif
 
-                            @if($film['boxOffice'] !== 'N/A')
+                            @if($film['boxOffice'] !== 'N/A' && strtolower($film['type']) !== 'series')
                                 <div class="flex justify-between border-b border-gray-700 pb-2">
-                                    <span class="text-gray-300">Box Office</span>
+                                    <span class="text-gray-300">Box Office <span class="text-xs text-blue-300">(DBpedia)</span></span>
                                     <span class="flex items-center gap-1">
                                         <svg class="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
                                             <path
@@ -296,47 +293,8 @@
                                                 d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z"
                                                 clip-rule="evenodd" />
                                         </svg>
-                                        @php
-                                            $boxOffice = $film['boxOffice'];
-                                            if (preg_match('/[\d.]+/', $boxOffice, $matches)) {
-                                                $number = floatval($matches[0]);
-                                                $formatted = '$' . number_format($number, 0, '.', ',');
-                                                $boxOffice = str_replace($matches[0], ltrim($formatted, '$'), $boxOffice);
-                                            }
-                                        @endphp
-                                        {{ $boxOffice }}
+                                        {{ $film['boxOffice'] }}
                                     </span>
-                                </div>
-                            @endif
-
-                            @if(!empty($film['dbpedia']['budget']))
-                                <div class="flex justify-between border-b border-gray-700 pb-2">
-                                    <span class="text-gray-300">Budget <span
-                                            class="text-xs text-blue-300">(DBpedia)</span></span>
-                                    <span class="flex items-center gap-1">
-                                        <svg class="w-4 h-4 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fill-rule="evenodd"
-                                                d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z"
-                                                clip-rule="evenodd" />
-                                        </svg>
-                                        {{ $film['dbpedia']['budget'] }}
-                                    </span>
-                                </div>
-
-                                <div
-                                    class="flex justify-between border-b border-gray-700 pb-2 bg-gray-800 bg-opacity-50 p-2 rounded mt-2">
-                                    <div>
-                                        <span class="block text-gray-300 font-bold">Analisis Profit</span>
-                                        <span class="text-[10px] text-yellow-500 tracking-wider uppercase">(Semantik
-                                            Data)</span>
-                                    </div>
-                                    <div class="text-right">
-                                        <span
-                                            class="block font-bold {{ $film['profit_class'] ?? 'text-gray-400' }} text-base">
-                                            {{ $film['profit_status'] ?? 'N/A' }}
-                                        </span>
-                                        <span class="text-[10px] text-gray-500">BoxOffice - Budget</span>
-                                    </div>
                                 </div>
                             @endif
 

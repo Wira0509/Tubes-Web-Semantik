@@ -58,31 +58,54 @@ class DBpediaService
         }, $data['results']['bindings']);
     }
 
-    public function getFilmInfo($title, $year = null)
+    public function getFilmInfo($title, $year = null, $type = 'movie')
     {
         $cleanTitle = str_replace(' ', '_', $title);
         
+        // Build possible URIs based on type
         $possibleUris = [
             "http://dbpedia.org/resource/{$cleanTitle}",
-            "http://dbpedia.org/resource/{$cleanTitle}_(film)",
         ];
 
-        if ($year && $year !== 'N/A') {
-            $possibleUris[] = "http://dbpedia.org/resource/{$cleanTitle}_({$year}_film)";
+        if ($type === 'series' || strtolower($type) === 'series') {
+            // For TV series
+            $possibleUris[] = "http://dbpedia.org/resource/{$cleanTitle}_(TV_series)";
+            $possibleUris[] = "http://dbpedia.org/resource/{$cleanTitle}_(TV_Series)";
+            if ($year && $year !== 'N/A') {
+                $possibleUris[] = "http://dbpedia.org/resource/{$cleanTitle}_({$year}_TV_series)";
+            }
+        } else {
+            // For movies
+            $possibleUris[] = "http://dbpedia.org/resource/{$cleanTitle}_(film)";
+            if ($year && $year !== 'N/A') {
+                $possibleUris[] = "http://dbpedia.org/resource/{$cleanTitle}_({$year}_film)";
+            }
         }
 
         $filmData = [
-            'budget' => null
+            'boxOffice' => null,
+            'wikipediaUrl' => null
         ];
 
         foreach ($possibleUris as $uri) {
+            // Query for both Film and TelevisionShow types
             $sparql = "
                 PREFIX dbo: <http://dbpedia.org/ontology/>
+                PREFIX foaf: <http://xmlns.com/foaf/0.1/>
                 
-                SELECT ?budget
+                SELECT ?boxOffice ?wikiPage ?type
                 WHERE {
-                    <{$uri}> a dbo:Film .
-                    OPTIONAL { <{$uri}> dbo:budget ?budget }
+                    {
+                        <{$uri}> a dbo:Film .
+                        BIND('film' AS ?type)
+                    }
+                    UNION
+                    {
+                        <{$uri}> a dbo:TelevisionShow .
+                        BIND('series' AS ?type)
+                    }
+                    OPTIONAL { <{$uri}> dbo:gross ?boxOffice }
+                    OPTIONAL { <{$uri}> foaf:isPrimaryTopicOf ?wikiPage }
                 }
                 LIMIT 1
             ";
@@ -92,8 +115,25 @@ class DBpediaService
             if (!empty($results)) {
                 $result = $results[0];
                 
-                if (!empty($result['budget'])) {
-                    $filmData['budget'] = $this->formatCurrency($result['budget']);
+                // Set Wikipedia URL if found
+                if (!empty($result['wikiPage'])) {
+                    $filmData['wikipediaUrl'] = $result['wikiPage'];
+                }
+                
+                if (!empty($result['boxOffice'])) {
+                    $filmData['boxOffice'] = $this->formatCurrency($result['boxOffice']);
+                }
+                
+                // If we found the page, use this URI
+                if (!empty($result['wikiPage']) || !empty($result['boxOffice']) || !empty($result['type'])) {
+                    // Extract Wikipedia title from DBpedia URI
+                    if (empty($filmData['wikipediaUrl'])) {
+                        $filmData['wikipediaUrl'] = str_replace(
+                            'http://dbpedia.org/resource/',
+                            'https://en.wikipedia.org/wiki/',
+                            $uri
+                        );
+                    }
                     break;
                 }
             }
@@ -102,9 +142,18 @@ class DBpediaService
         return $filmData;
     }
 
+    /**
+     * Get the correct Wikipedia URL for a film
+     */
+    public function getWikipediaUrl($title, $year = null)
+    {
+        $filmInfo = $this->getFilmInfo($title, $year);
+        return $filmInfo['wikipediaUrl'];
+    }
+
     private function formatCurrency($value)
     {
-        Log::info('DBpedia raw budget value: ' . $value);
+        Log::info('DBpedia raw boxOffice value: ' . $value);
         
         if (!is_numeric($value)) {
             $cleanValue = preg_replace('/[^0-9.]/', '', $value);

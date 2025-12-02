@@ -22,12 +22,22 @@
                 </svg>
                 Asisten TetengFilm
             </h3>
-            <button @click="isOpen = false" class="hover:bg-yellow-600 rounded p-1 transition">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
-                    stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-            </button>
+            <div class="flex gap-2">
+                <!-- Reset Chat Button -->
+                <button @click="resetChat()" 
+                        class="hover:bg-yellow-600 rounded p-1 transition"
+                        title="Reset Chat & Rekomendasi">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                </button>
+                <button @click="isOpen = false" class="hover:bg-yellow-600 rounded p-1 transition">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
         </div>
 
         <div class="flex-grow p-4 overflow-y-auto bg-imdb-dark space-y-3" x-ref="chatContainer">
@@ -92,11 +102,20 @@
         </div>
 
         <div class="p-3 bg-imdb-gray border-t border-gray-700 flex-shrink-0">
+            <!-- Character Counter -->
+            <div class="flex justify-between items-center mb-2 text-xs">
+                <span class="text-gray-400">Ketik pesan atau pilih mood:</span>
+                <span :class="userInput.length > 500 ? 'text-red-400 font-bold' : userInput.length > 400 ? 'text-yellow-400' : 'text-gray-500'">
+                    <span x-text="userInput.length"></span><span class="text-gray-600">/500</span>
+                </span>
+            </div>
+
             <div class="flex gap-2 mb-2">
                 <input type="text" 
                        x-model="userInput"
                        @keyup.enter="sendMessage()"
                        :disabled="isLoading"
+                       maxlength="500"
                        placeholder="Ketik pesan..."
                        class="flex-1 bg-imdb-light-gray text-white px-3 py-2 rounded-md border border-gray-600 focus:outline-none focus:border-imdb-yellow text-sm disabled:opacity-50">
                 <button @click="sendMessage()" 
@@ -269,18 +288,10 @@
                     body: JSON.stringify({ message: message }) 
                 })
                 .then(response => {
-                    console.log('Response status:', response.status);
-                    
                     if (!response.ok) {
                         return response.json().then(data => {
-                            console.error('Error response:', data);
-                            
-                            // Show detailed error in development
-                            let errorMsg = data.message || 'Maaf, lagi gangguan nih. Coba lagi ya! 😊';
-                            if (data.error_debug) {
-                                errorMsg += '\n\nDebug: ' + data.error_debug;
-                            }
-                            
+                            // SECURITY FIX: Don't show debug info
+                            let errorMsg = data.message || 'Maaf, ada gangguan teknis. Coba lagi ya! 😊';
                             throw new Error(errorMsg);
                         });
                     }
@@ -288,12 +299,6 @@
                 })
                 .then(data => {
                     this.isLoading = false;
-                    
-                    console.log('Success response:', data);
-                    
-                    if (!data.message) {
-                        throw new Error('Invalid response from server');
-                    }
                     
                     this.messages.push({ 
                         sender: 'bot', 
@@ -303,13 +308,37 @@
                 })
                 .catch(error => {
                     this.isLoading = false;
-                    console.error('Full error:', error);
                     
+                    // SECURITY FIX: User-friendly error only
                     this.messages.push({ 
                         sender: 'bot', 
-                        text: error.message || 'Maaf, lagi gangguan nih. Coba lagi ya! 😊'
+                        text: error.message
                     });
                 });
+            },
+
+            resetChat() {
+                if (confirm('Reset percakapan? Rekomendasi akan fresh lagi dari awal.')) {
+                    this.messages = [];
+                    
+                    fetch('/admin/chatbot/clear-cache', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        this.messages.push({
+                            sender: 'bot',
+                            text: 'Chat direset! Sekarang aku bisa rekomendasiin film fresh lagi. Ada yang mau ditanyain? 🎬'
+                        });
+                    })
+                    .catch(error => {
+                        console.error('Reset error:', error);
+                    });
+                }
             }
         }
     }

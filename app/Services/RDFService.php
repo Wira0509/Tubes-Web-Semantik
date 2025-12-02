@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class RDFService
@@ -235,5 +236,144 @@ class RDFService
         } catch (\Exception $e) {
             return false;
         }
+    }
+
+    /**
+     * UPGRADE: Smart search in RDF data
+     * Returns films matching keywords with relevance score
+     */
+    public function searchFilms($query, $limit = 100)
+    {
+        $allFilms = $this->getAllFilms();
+        
+        if (empty($query)) {
+            // No query, return top rated
+            usort($allFilms, fn($a, $b) => floatval($b['rating'] ?? 0) <=> floatval($a['rating'] ?? 0));
+            return array_slice($allFilms, 0, $limit);
+        }
+        
+        $keywords = explode(' ', strtolower(preg_replace('/[^a-zA-Z0-9 ]/', '', $query)));
+        $scored = [];
+        
+        foreach ($allFilms as $film) {
+            $score = 0;
+            
+            // Searchable fields
+            $title = strtolower($film['title'] ?? '');
+            $genres = is_array($film['genre']) ? strtolower(implode(' ', $film['genre'])) : strtolower($film['genre'] ?? '');
+            $director = strtolower($film['director'] ?? '');
+            $cast = strtolower($film['cast'] ?? '');
+            $plot = strtolower($film['plot'] ?? '');
+            $year = (string)($film['year'] ?? '');
+            
+            foreach ($keywords as $kw) {
+                if (strlen($kw) < 2) continue;
+                
+                // Exact match in title = highest score
+                if ($title === $kw) $score += 100;
+                if (str_contains($title, $kw)) $score += 50;
+                
+                // Genre match
+                if (str_contains($genres, $kw)) $score += 30;
+                
+                // Director/Cast match
+                if (str_contains($director, $kw)) $score += 25;
+                if (str_contains($cast, $kw)) $score += 20;
+                
+                // Plot match
+                if (str_contains($plot, $kw)) $score += 10;
+                
+                // Year match
+                if ($year === $kw) $score += 15;
+            }
+            
+            if ($score > 0) {
+                $film['search_score'] = $score;
+                $scored[] = $film;
+            }
+        }
+        
+        // Sort by relevance
+        usort($scored, fn($a, $b) => $b['search_score'] <=> $a['search_score']);
+        
+        // If no results, return top rated
+        if (empty($scored)) {
+            Log::info('No search results, returning top rated films');
+            usort($allFilms, fn($a, $b) => floatval($b['rating'] ?? 0) <=> floatval($a['rating'] ?? 0));
+            return array_slice($allFilms, 0, $limit);
+        }
+        
+        return array_slice($scored, 0, $limit);
+    }
+
+    /**
+     * Check if specific film exists in database
+     */
+    public function filmExists($titleOrId)
+    {
+        $allFilms = $this->getAllFilms();
+        $query = strtolower($titleOrId);
+        
+        foreach ($allFilms as $film) {
+            if (strtolower($film['imdb_id']) === $query) {
+                return $film;
+            }
+            
+            if (str_contains(strtolower($film['title']), $query)) {
+                return $film;
+            }
+        }
+        
+        return null;
+    }
+
+    /**
+     * Get statistics about database
+     */
+    public function getStats()
+    {
+        $films = $this->getAllFilms();
+        
+        $genres = [];
+        $years = [];
+        
+        foreach ($films as $film) {
+            // Count genres
+            $filmGenres = is_array($film['genre']) ? $film['genre'] : [$film['genre']];
+            foreach ($filmGenres as $g) {
+                if (empty($g)) continue;
+                $genres[$g] = ($genres[$g] ?? 0) + 1;
+            }
+            
+            // Count years
+            $year = $film['year'] ?? 'Unknown';
+            $years[$year] = ($years[$year] ?? 0) + 1;
+        }
+        
+        arsort($genres);
+        arsort($years);
+        
+        return [
+            'total_films' => count($films),
+            'total_genres' => count($genres),
+            'top_genres' => array_slice($genres, 0, 10, true),
+            'year_range' => [
+                'min' => min(array_keys(array_filter($years, fn($k) => $k !== 'Unknown', ARRAY_FILTER_USE_KEY))),
+                'max' => max(array_keys(array_filter($years, fn($k) => $k !== 'Unknown', ARRAY_FILTER_USE_KEY)))
+            ],
+            'films_per_decade' => $this->groupByDecade($years)
+        ];
+    }
+
+    private function groupByDecade($years)
+    {
+        $decades = [];
+        foreach ($years as $year => $count) {
+            if ($year === 'Unknown') continue;
+            $decade = floor($year / 10) * 10;
+            $decades[$decade . 's'] = ($decades[$decade . 's'] ?? 0) + $count;
+        }
+        ksort($decades);
+        return $decades;
     }
 }

@@ -116,7 +116,7 @@ class RDFService
     }
 
     /**
-     * Transform SPARQL results to film array
+     * Transform SPARQL results to film array - ENHANCED VERSION
      */
     private function transformResults($bindings)
     {
@@ -144,6 +144,10 @@ class RDFService
                     'plot' => null,
                     'poster' => null,
                     'genre' => [],
+                    'director' => null,
+                    'cast' => [],
+                    'country' => [], // UPGRADE: Country detection
+                    'language' => [], // UPGRADE: Language detection
                 ];
             }
 
@@ -156,34 +160,79 @@ class RDFService
                 case 'label':
                     $filmsMap[$subject]['title'] = trim($object);
                     break;
+                    
                 case 'year':
                 case 'releaseYear':
                 case 'datePublished':
                     $filmsMap[$subject]['year'] = trim($object);
                     break;
+                    
                 case 'rating':
                 case 'imdbRating':
                     $filmsMap[$subject]['rating'] = trim($object);
                     break;
+                    
                 case 'plot':
                 case 'description':
                 case 'abstract':
                     $filmsMap[$subject]['plot'] = trim($object);
                     break;
+                    
                 case 'poster':
                 case 'image':
                     $filmsMap[$subject]['poster'] = trim($object);
                     break;
+                    
                 case 'genre':
                     $genre = trim($object);
                     if (!in_array($genre, $filmsMap[$subject]['genre'])) {
                         $filmsMap[$subject]['genre'][] = $genre;
                     }
                     break;
+                    
+                case 'director':
+                    $filmsMap[$subject]['director'] = trim($object);
+                    break;
+                    
+                case 'actor':
+                case 'starring':
+                case 'cast':
+                    $actor = trim($object);
+                    if (!in_array($actor, $filmsMap[$subject]['cast'])) {
+                        $filmsMap[$subject]['cast'][] = $actor;
+                    }
+                    break;
+                    
+                // UPGRADE: Country detection
+                case 'country':
+                case 'countryOfOrigin':
+                case 'productionCountry':
+                    $country = trim($object);
+                    if (!in_array($country, $filmsMap[$subject]['country'])) {
+                        $filmsMap[$subject]['country'][] = $country;
+                    }
+                    break;
+                    
+                // UPGRADE: Language detection
+                case 'language':
+                case 'inLanguage':
+                    $language = trim($object);
+                    if (!in_array($language, $filmsMap[$subject]['language'])) {
+                        $filmsMap[$subject]['language'][] = $language;
+                    }
+                    break;
+                    
                 case 'imdbID':
                 case 'identifier':
                     $filmsMap[$subject]['imdb_id'] = trim($object);
                     break;
+            }
+        }
+
+        // UPGRADE: Auto-detect country from title/plot/director
+        foreach ($filmsMap as &$film) {
+            if (empty($film['country'])) {
+                $film['country'] = $this->detectCountryFromMetadata($film);
             }
         }
 
@@ -193,6 +242,59 @@ class RDFService
         });
 
         return array_values($films);
+    }
+
+    /**
+     * UPGRADE: Auto-detect country from film metadata
+     */
+    private function detectCountryFromMetadata($film)
+    {
+        $countries = [];
+        
+        // Check title for Indonesian words
+        $indonesianWords = ['anak', 'cinta', 'jalan', 'pulang', 'rumah', 'negeri', 'bumi', 'langit', 'laut', 'gunung'];
+        $titleLower = strtolower($film['title'] ?? '');
+        
+        foreach ($indonesianWords as $word) {
+            if (str_contains($titleLower, $word)) {
+                $countries[] = 'Indonesia';
+                break;
+            }
+        }
+        
+        // Check director for Indonesian names
+        $directorLower = strtolower($film['director'] ?? '');
+        $indonesianDirectors = ['joko', 'anwar', 'riri', 'riza', 'garin', 'hanung', 'timo', 'angga', 'raditya'];
+        
+        foreach ($indonesianDirectors as $name) {
+            if (str_contains($directorLower, $name)) {
+                $countries[] = 'Indonesia';
+                break;
+            }
+        }
+        
+        // Check plot for country mentions
+        $plotLower = strtolower($film['plot'] ?? '');
+        $countryKeywords = [
+            'indonesia' => 'Indonesia',
+            'jakarta' => 'Indonesia',
+            'surabaya' => 'Indonesia',
+            'bali' => 'Indonesia',
+            'japan' => 'Japan',
+            'tokyo' => 'Japan',
+            'korea' => 'South Korea',
+            'seoul' => 'South Korea',
+            'china' => 'China',
+            'beijing' => 'China',
+        ];
+        
+        foreach ($countryKeywords as $keyword => $country) {
+            if (str_contains($plotLower, $keyword)) {
+                $countries[] = $country;
+            }
+        }
+        
+        return array_unique($countries);
     }
 
     /**
